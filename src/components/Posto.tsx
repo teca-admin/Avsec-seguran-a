@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Canal, TURNOS, EFETIVO_BASE, CANAL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
-import { Plus, ClipboardList, Users, HardDrive, Plane } from 'lucide-react';
+import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2 } from 'lucide-react';
 import OcorrenciaModal from './OcorrenciaModal';
-import { Ocorrencia } from '../types';
+import { Ocorrencia, Turno } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface PostoProps {
   canal: Canal;
@@ -16,23 +17,161 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
 
-  const togglePresence = (mat: string) => {
-    setPresence(prev => ({ ...prev, [mat]: !prev[mat] }));
+  const fetchActiveTurno = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .select('*')
+        .is('fechado_em', null)
+        .order('data', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setActiveTurnoId(data.id);
+        onTurnoChange(data.letra);
+        return data.id;
+      }
+    } catch (err) {
+      console.error('Erro ao buscar turno ativo:', err);
+    }
+    return null;
+  }, [onTurnoChange]);
+
+  const fetchPresence = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('efetivo_turno')
+        .select('agente_id, presente')
+        .eq('turno_id', turnoId);
+
+      if (error) throw error;
+      if (data) {
+        const presenceMap: Record<string, boolean> = {};
+        data.forEach((p: any) => {
+          presenceMap[p.agente_id] = p.presente;
+        });
+        setPresence(presenceMap);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar efetivo:', err);
+    }
+  }, []);
+
+  const fetchOcorrencias = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('ocorrencias')
+        .select('*')
+        .eq('turno_id', turnoId)
+        .eq('canal', canal)
+        .order('ts', { ascending: false });
+
+      if (error) throw error;
+      if (data) setOcorrencias(data);
+    } catch (err) {
+      console.error('Erro ao buscar ocorrências:', err);
+    }
+  }, [canal]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      const turnoId = await fetchActiveTurno();
+      if (turnoId) {
+        await Promise.all([
+          fetchPresence(turnoId),
+          fetchOcorrencias(turnoId)
+        ]);
+      }
+      setLoading(false);
+    };
+    init();
+  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias]);
+
+  const togglePresence = async (mat: string) => {
+    if (!activeTurnoId) return;
+    
+    const newState = !presence[mat];
+    setPresence(prev => ({ ...prev, [mat]: newState }));
+
+    try {
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('efetivo_turno')
+        .upsert({
+          turno_id: activeTurnoId,
+          agente_id: mat,
+          presente: newState,
+          registrado_em: new Date().toISOString()
+        }, { onConflict: 'turno_id,agente_id' });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Erro ao atualizar presença:', err);
+      // Rollback UI state on error
+      setPresence(prev => ({ ...prev, [mat]: !newState }));
+    }
   };
 
-  const handleSaveOcorrencia = (data: any) => {
-    const newOcorrencia: Ocorrencia = {
-      id: Math.random().toString(36).substr(2, 9),
-      canal,
-      turnoId: turno,
-      ...data
-    };
-    setOcorrencias(prev => [...prev, newOcorrencia]);
+  const handleSaveOcorrencia = async (data: any) => {
+    if (!activeTurnoId) return;
+
+    try {
+      const { data: inserted, error } = await supabase
+        .schema('seguranca')
+        .from('ocorrencias')
+        .insert({
+          turno_id: activeTurnoId,
+          canal,
+          tipo: data.tipo,
+          hora: data.hora,
+          descricao: data.desc,
+          agente: data.agente,
+          ts: data.ts,
+          registrado_em: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (inserted) {
+        // Map database fields back to UI type if necessary
+        const mapped: Ocorrencia = {
+          id: inserted.id,
+          canal: inserted.canal,
+          turnoId: inserted.turno_id,
+          tipo: inserted.tipo,
+          hora: inserted.hora,
+          desc: inserted.descricao,
+          agente: inserted.agente,
+          ts: inserted.ts
+        };
+        setOcorrencias(prev => [mapped, ...prev]);
+      }
+    } catch (err) {
+      console.error('Erro ao salvar ocorrência:', err);
+      alert('Erro ao salvar ocorrência no banco de dados.');
+    }
   };
 
   const efetivo = EFETIVO_BASE[canal];
-  const presenceCount = Object.values(presence).filter(Boolean).length;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="animate-spin" size={32} />
+        <p className="font-mono text-xs uppercase tracking-widest">Sincronizando com Supabase...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -49,12 +188,12 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           {Object.values(TURNOS).map((t) => (
             <button
               key={t.letra}
-              onClick={() => onTurnoChange(t.letra)}
+              disabled
               className={cn(
-                "px-3 py-1.5 rounded text-xs font-mono border transition-all",
+                "px-3 py-1.5 rounded text-xs font-mono border transition-all cursor-default",
                 turno === t.letra 
                   ? "border-accent text-accent bg-accent/10" 
-                  : "border-border bg-surface-2 text-muted"
+                  : "border-border bg-surface-2 text-muted opacity-50"
               )}
             >
               {t.letra} · {t.inicio}–{t.fim}
@@ -173,69 +312,22 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         </div>
       )}
 
+      {/* Outras abas permanecem como protótipo por enquanto */}
       {activeTab === 'equipamentos' && (
         <div className="card overflow-x-auto">
           <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
             Registro de equipamentos com defeito
           </div>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="text-[11px] font-mono text-muted text-left p-2 px-2.5 border-b border-border uppercase tracking-wider">Tipo</th>
-                <th className="text-[11px] font-mono text-muted text-left p-2 px-2.5 border-b border-border uppercase tracking-wider">Data</th>
-                <th className="text-[11px] font-mono text-muted text-left p-2 px-2.5 border-b border-border uppercase tracking-wider">Descrição</th>
-                <th className="text-[11px] font-mono text-muted text-left p-2 px-2.5 border-b border-border uppercase tracking-wider">Local</th>
-                <th className="text-[11px] font-mono text-muted text-left p-2 px-2.5 border-b border-border uppercase tracking-wider">OS</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="p-2 border-b border-border-2">
-                  <select className="bg-background border border-border rounded p-1 text-xs outline-none">
-                    <option>RX</option>
-                    <option>ETD</option>
-                    <option>PDM</option>
-                  </select>
-                </td>
-                <td className="p-2 border-b border-border-2"><input type="date" className="bg-transparent border-none text-xs outline-none w-full" /></td>
-                <td className="p-2 border-b border-border-2"><input type="text" placeholder="Defeito..." className="bg-transparent border-none text-xs outline-none w-full" /></td>
-                <td className="p-2 border-b border-border-2"><input type="text" placeholder="Local..." className="bg-transparent border-none text-xs outline-none w-full" /></td>
-                <td className="p-2 border-b border-border-2"><input type="text" placeholder="Nº OS..." className="bg-transparent border-none text-xs outline-none w-full" /></td>
-              </tr>
-            </tbody>
-          </table>
-          <button className="btn btn-secondary btn-sm mt-3">
-            <Plus size={14} />
-            Adicionar linha
-          </button>
+          <p className="text-xs text-hint py-4">Funcionalidade em desenvolvimento.</p>
         </div>
       )}
 
       {activeTab === 'passageiros' && (
-        <div className="space-y-4">
-          <div className="card">
-            <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
-              Fluxo de passageiros – embarque doméstico
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              <div className="bg-surface-2 border border-border-2 rounded p-2.5">
-                <label className="block text-[10px] font-mono text-muted uppercase mb-1.5">Total geral</label>
-                <input type="number" placeholder="0" className="w-full bg-background border border-border rounded p-1.5 font-mono text-lg font-medium text-center outline-none focus:border-accent" />
-              </div>
-              <div className="bg-surface-2 border border-border-2 rounded p-2.5">
-                <label className="block text-[10px] font-mono text-muted uppercase mb-1.5">Pico máx/hora</label>
-                <input type="number" placeholder="0" className="w-full bg-background border border-border rounded p-1.5 font-mono text-lg font-medium text-center outline-none focus:border-accent" />
-              </div>
-              <div className="bg-surface-2 border border-border-2 rounded p-2.5">
-                <label className="block text-[10px] font-mono text-muted uppercase mb-1.5">Hora do pico</label>
-                <input type="time" className="w-full bg-background border border-border rounded p-1.5 font-mono text-lg font-medium text-center outline-none focus:border-accent" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Observação sobre fluxo</label>
-              <textarea rows={2} placeholder="Ex: Não foi registrado fluxo intenso..." className="form-input text-sm"></textarea>
-            </div>
+        <div className="card">
+          <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
+            Fluxo de passageiros
           </div>
+          <p className="text-xs text-hint py-4">Funcionalidade em desenvolvimento.</p>
         </div>
       )}
 

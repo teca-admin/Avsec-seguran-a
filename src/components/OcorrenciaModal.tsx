@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Canal, EFETIVO_BASE, OcorrenciaTipo } from '../constants';
+import { Canal, EFETIVO_BASE } from '../constants';
+import { OcorrenciaTipo } from '../types';
 import { cn } from '../lib/utils';
 import { X } from 'lucide-react';
 

@@ -1,5 +1,7 @@
 import { Canal, Agente, Turno } from './types';
 
+export type { Canal, Agente, Turno };
+
 export const CANAL_CONFIG: Record<Canal, { name: string; badge: string; label: string }> = {
   alfa: { name: 'Canal Alfa – Internacional', badge: 'bg-transparent text-muted-foreground border border-border', label: 'ALFA' },
   bravo: { name: 'Canal Bravo – Doméstico TPS', badge: 'bg-transparent text-muted-foreground border border-border', label: 'BRAVO' },

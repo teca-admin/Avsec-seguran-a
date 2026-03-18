@@ -1,25 +1,146 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
 import { cn } from '../lib/utils';
-import { Users, ClipboardList, Activity, FileText, Send } from 'lucide-react';
+import { Users, ClipboardList, Activity, FileText, Send, Loader2 } from 'lucide-react';
 import PdfReport from './PdfReport';
 import { Ocorrencia } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface SupervisorProps {
   turno: string;
 }
 
-export default function Supervisor({ turno }: SupervisorProps) {
+export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [presence, setPresence] = useState<Record<Canal, Record<string, boolean>>>({
     alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
   });
+  const [activeTurno, setActiveTurno] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-  const turnoInfo = TURNOS[turno];
+  const buscarEfetivo = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('efetivo_turno')
+        .select('agente_id, presente, turnos(canal)')
+        .eq('turno_id', turnoId);
+
+      if (error) throw error;
+      if (data) {
+        const newPresence: Record<Canal, Record<string, boolean>> = {
+          alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
+        };
+        
+        data.forEach((p: any) => {
+          // We need to know which channel the agent belongs to. 
+          // For simplicity in this MVP, we'll check all channels in EFETIVO_BASE
+          // but ideally the database schema should provide this.
+          // For now, let's just map them based on where they appear.
+          (['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).forEach(c => {
+            newPresence[c][p.agente_id] = p.presente;
+          });
+        });
+        setPresence(newPresence);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar efetivo:', err);
+    }
+  }, []);
+
+  const buscarOcorrencias = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('ocorrencias')
+        .select('*')
+        .eq('turno_id', turnoId)
+        .order('ts', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        setOcorrencias(data.map((o: any) => ({
+          id: o.id,
+          canal: o.canal,
+          turnoId: o.turno_id,
+          tipo: o.tipo,
+          hora: o.hora,
+          desc: o.descricao,
+          agente: o.agente,
+          ts: o.ts
+        })));
+      }
+    } catch (err) {
+      console.error('Erro ao buscar ocorrências:', err);
+    }
+  }, []);
+
+  const fetchActiveTurno = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .select('*')
+        .is('fechado_em', null)
+        .order('data', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setActiveTurno(data);
+        return data.id;
+      }
+    } catch (err) {
+      console.error('Erro ao buscar turno ativo:', err);
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    let channel: any;
+
+    const init = async () => {
+      setLoading(true);
+      const turnoId = await fetchActiveTurno();
+      if (turnoId) {
+        await Promise.all([
+          buscarEfetivo(turnoId),
+          buscarOcorrencias(turnoId)
+        ]);
+
+        // Subscribe to Realtime
+        channel = supabase
+          .channel('dashboard')
+          .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'seguranca', 
+            table: 'ocorrencias',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => {
+            buscarOcorrencias(turnoId);
+          })
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'efetivo_turno',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => {
+            buscarEfetivo(turnoId);
+          })
+          .subscribe();
+      }
+      setLoading(false);
+    };
+
+    init();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias]);
 
   const handlePrint = () => {
     const printContent = document.getElementById('pdf-report-content');
@@ -31,15 +152,15 @@ export default function Supervisor({ turno }: SupervisorProps) {
     win.document.write(`
       <html>
         <head>
-          <title>Relatório AVSEC - Turno ${turno}</title>
+          <title>Relatório AVSEC - Turno ${activeTurno?.letra || initialTurno}</title>
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
-        <body>
+        <body class="bg-white">
           ${printContent.innerHTML}
           <script>
             window.onload = () => {
               window.print();
-              window.close();
+              // window.close(); // Optional: close after print
             }
           </script>
         </body>
@@ -49,17 +170,53 @@ export default function Supervisor({ turno }: SupervisorProps) {
   };
 
   const handleSendWebhook = async () => {
+    const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+    if (!webhookUrl || webhookUrl === 'SUA_URL_DO_N8N_AQUI') {
+      alert('URL do Webhook n8n não configurada no .env.local');
+      return;
+    }
+
     setSending(true);
     try {
-      // Mock webhook call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const payload = {
+        turno: activeTurno?.letra || initialTurno,
+        data: new Date().toLocaleDateString('pt-BR'),
+        supervisor: "Elijane S. Nascimento",
+        ocorrencias: ocorrencias,
+        total_agentes: Object.values(presence).reduce((acc: number, curr: Record<string, boolean>) => acc + Object.values(curr).filter(Boolean).length, 0),
+        timestamp: new Date().toISOString()
+      };
+
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
+      
       alert('Relatório enviado com sucesso via Webhook!');
-    } catch (error) {
-      alert('Erro ao enviar relatório.');
+    } catch (error: any) {
+      console.error('Erro ao enviar webhook:', error);
+      alert(`Erro ao enviar relatório: ${error.message}`);
     } finally {
       setSending(false);
     }
   };
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const currentTurno = activeTurno?.letra || initialTurno;
+  const turnoInfo = TURNOS[currentTurno];
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted">
+        <Loader2 className="animate-spin" size={32} />
+        <p className="font-mono text-xs uppercase tracking-widest">Carregando Dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -74,14 +231,14 @@ export default function Supervisor({ turno }: SupervisorProps) {
             Gerar Relatório PDF
           </button>
         </div>
-        <p className="text-xs text-muted">{dateStr} · Turno {turno}</p>
+        <p className="text-xs text-muted">{dateStr} · Turno {currentTurno}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="card p-4">
           <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Agentes em serviço</div>
           <div className="text-2xl font-semibold font-mono text-teal-500">
-            {Object.values(presence).reduce((acc, curr) => acc + Object.values(curr).filter(Boolean).length, 0)}
+            {Object.values(presence).reduce((acc: number, curr: Record<string, boolean>) => acc + Object.values(curr).filter(Boolean).length, 0)}
           </div>
           <div className="text-[11px] text-muted mt-0.5">confirmados presentes</div>
         </div>
@@ -97,7 +254,7 @@ export default function Supervisor({ turno }: SupervisorProps) {
         </div>
         <div className="card p-4">
           <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Turno atual</div>
-          <div className="text-xl font-semibold font-mono text-accent">{turno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
+          <div className="text-xl font-semibold font-mono text-accent">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
           <div className="text-[11px] text-muted mt-0.5">Elijane S. Nascimento</div>
         </div>
       </div>
@@ -108,7 +265,9 @@ export default function Supervisor({ turno }: SupervisorProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map((c) => {
           const config = CANAL_CONFIG[c];
-          const count = Object.values(presence[c] || {}).filter(Boolean).length;
+          // Filter presence based on EFETIVO_BASE for this canal
+          const channelAgents = Object.keys(presence[c] || {});
+          const count = channelAgents.filter(id => presence[c][id]).length;
           const channelOcorrencias = ocorrencias.filter(o => o.canal === c).length;
           
           return (
@@ -182,7 +341,7 @@ export default function Supervisor({ turno }: SupervisorProps) {
             <div className="flex-1 overflow-y-auto p-6 bg-surface-3">
               <div className="bg-white shadow-lg mx-auto">
                 <PdfReport 
-                  turno={turno}
+                  turno={currentTurno}
                   data={new Date().toLocaleDateString('pt-BR')}
                   supervisor="Elijane S. Nascimento"
                   recebeuDe=""

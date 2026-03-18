@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-2: #1c2230;
+  --color-surface-3: #212836;
+  --color-border: #30363d;
+  --color-border-2: #21262d;
+  --color-text: #e6edf3;
+  --color-muted: #7d8590;
+  --color-hint: #484f58;
+  --color-accent: #f0a500;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-text font-sans antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded transition-all active:scale-95 font-medium text-sm cursor-pointer;
+  }
+  .btn-primary {
+    @apply bg-accent text-black hover:opacity-90;
+  }
+  .btn-secondary {
+    @apply bg-surface-2 text-text border border-border hover:border-muted;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-muted hover:text-text hover:border-border border border-transparent;
+  }
+  .card {
+    @apply bg-surface border border-border rounded-lg p-5;
+  }
+  .form-input {
+    @apply w-full bg-background border border-border rounded px-3 py-2 text-text focus:border-accent outline-none transition-colors;
+  }
+}

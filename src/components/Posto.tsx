@@ -18,27 +18,61 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
 
   const fetchActiveTurno = useCallback(async () => {
     try {
+      setError(null);
       const { data, error } = await supabase
         .schema('seguranca')
         .from('turnos')
         .select('*')
         .is('fechado_em', null)
         .order('data', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (error) throw error;
-      if (data) {
-        setActiveTurnoId(data.id);
-        onTurnoChange(data.letra);
-        return data.id;
+      if (error) {
+        if (error.code === '42501') {
+          setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        }
+        throw error;
+      }
+      
+      if (data && data.length > 0) {
+        const active = data[0];
+        setActiveTurnoId(active.id);
+        onTurnoChange(active.letra);
+        return active.id;
+      } else {
+        // Se não houver turno ativo, criar um novo para o dia de hoje
+        // Baseado na hora atual para sugerir a letra do turno
+        const now = new Date();
+        const hour = now.getHours();
+        let suggestedLetra = 'A';
+        if (hour >= 6 && hour < 14) suggestedLetra = 'B';
+        else if (hour >= 14 && hour < 22) suggestedLetra = 'C';
+        
+        const { data: newTurno, error: createError } = await supabase
+          .schema('seguranca')
+          .from('turnos')
+          .insert({
+            letra: suggestedLetra,
+            data: now.toISOString().split('T')[0],
+            aberto_em: now.toISOString()
+          })
+          .select()
+          .single();
+          
+        if (createError) throw createError;
+        if (newTurno) {
+          setActiveTurnoId(newTurno.id);
+          onTurnoChange(newTurno.letra);
+          return newTurno.id;
+        }
       }
     } catch (err) {
-      console.error('Erro ao buscar turno ativo:', err);
+      console.error('Erro ao buscar/criar turno ativo:', err);
     }
     return null;
   }, [onTurnoChange]);
@@ -97,9 +131,14 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, [fetchActiveTurno, fetchPresence, fetchOcorrencias]);
 
   const togglePresence = async (mat: string) => {
-    if (!activeTurnoId) return;
+    console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId);
+    if (!activeTurnoId) {
+      alert('Nenhum turno ativo encontrado. Por favor, recarregue a página ou aguarde a sincronização.');
+      return;
+    }
     
     const newState = !presence[mat];
+    console.log('New presence state:', newState);
     setPresence(prev => ({ ...prev, [mat]: newState }));
 
     try {
@@ -113,9 +152,14 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           registrado_em: new Date().toISOString()
         }, { onConflict: 'turno_id,agente_id' });
 
-      if (error) throw error;
-    } catch (err) {
+      if (error) {
+        console.error('Supabase error updating presence:', error);
+        throw error;
+      }
+      console.log('Presence updated successfully in Supabase');
+    } catch (err: any) {
       console.error('Erro ao atualizar presença:', err);
+      alert('Erro ao salvar presença no banco de dados: ' + (err.message || 'Erro desconhecido'));
       // Rollback UI state on error
       setPresence(prev => ({ ...prev, [mat]: !newState }));
     }
@@ -163,6 +207,31 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   };
 
   const efetivo = EFETIVO_BASE[canal];
+
+  if (error) {
+    return (
+      <div className="card p-8 border-amber-500/50 bg-amber-500/5 text-center space-y-4">
+        <div className="text-3xl">⚠️</div>
+        <h3 className="text-lg font-medium text-amber-500">Problema de Conexão</h3>
+        <p className="text-sm text-muted max-w-md mx-auto leading-relaxed">
+          {error}
+        </p>
+        <div className="pt-4 space-y-2">
+          <p className="text-[10px] font-mono text-muted uppercase">Como resolver no Supabase SQL Editor:</p>
+          <pre className="bg-surface-2 p-3 rounded text-[10px] text-left overflow-x-auto font-mono border border-border">
+            {`GRANT USAGE ON SCHEMA seguranca TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
+          </pre>
+        </div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="btn btn-primary btn-sm"
+        >
+          Tentar Novamente
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

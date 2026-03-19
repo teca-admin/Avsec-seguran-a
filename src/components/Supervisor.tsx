@@ -18,7 +18,10 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
   });
   const [activeTurno, setActiveTurno] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [supervisorName, setSupervisorName] = useState("Elijane S. Nascimento");
+  const [recebeuDe, setRecebeuDe] = useState("");
 
   const buscarEfetivo = useCallback(async (turnoId: string) => {
     try {
@@ -28,7 +31,10 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
         .select('agente_id, presente, turnos(canal)')
         .eq('turno_id', turnoId);
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        throw error;
+      }
       if (data) {
         const newPresence: Record<Canal, Record<string, boolean>> = {
           alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
@@ -59,7 +65,10 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
         .eq('turno_id', turnoId)
         .order('ts', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        throw error;
+      }
       if (data) {
         setOcorrencias(data.map((o: any) => ({
           id: o.id,
@@ -88,7 +97,10 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
         .limit(1)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        throw error;
+      }
       if (data) {
         setActiveTurno(data);
         return data.id;
@@ -181,7 +193,8 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
       const payload = {
         turno: activeTurno?.letra || initialTurno,
         data: new Date().toLocaleDateString('pt-BR'),
-        supervisor: "Elijane S. Nascimento",
+        supervisor: supervisorName,
+        recebeuDe: recebeuDe,
         ocorrencias: ocorrencias,
         total_agentes: Object.values(presence).reduce((acc: number, curr: Record<string, boolean>) => acc + Object.values(curr).filter(Boolean).length, 0),
         timestamp: new Date().toISOString()
@@ -208,6 +221,31 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
   const dateStr = now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const currentTurno = activeTurno?.letra || initialTurno;
   const turnoInfo = TURNOS[currentTurno];
+
+  if (error) {
+    return (
+      <div className="card p-8 border-amber-500/50 bg-amber-500/5 text-center space-y-4">
+        <div className="text-3xl">⚠️</div>
+        <h3 className="text-lg font-medium text-amber-500">Problema de Conexão</h3>
+        <p className="text-sm text-muted max-w-md mx-auto leading-relaxed">
+          {error}
+        </p>
+        <div className="pt-4 space-y-2">
+          <p className="text-[10px] font-mono text-muted uppercase">Como resolver no Supabase SQL Editor:</p>
+          <pre className="bg-surface-2 p-3 rounded text-[10px] text-left overflow-x-auto font-mono border border-border">
+            {`GRANT USAGE ON SCHEMA seguranca TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
+          </pre>
+        </div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="btn btn-primary btn-sm"
+        >
+          Tentar Novamente
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -329,6 +367,35 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
         </div>
       )}
 
+      {/* Dados do Supervisor para o Relatório */}
+      <div className="card p-6 space-y-4">
+        <div className="text-[10px] font-mono text-muted uppercase tracking-widest border-b border-border-2 pb-2">
+          Dados do supervisor para o relatório
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Nome do Supervisor</label>
+            <input 
+              type="text" 
+              value={supervisorName}
+              onChange={(e) => setSupervisorName(e.target.value)}
+              className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all"
+              placeholder="Nome do supervisor..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Recebeu de (Supervisor Turno Anterior)</label>
+            <input 
+              type="text" 
+              value={recebeuDe}
+              onChange={(e) => setRecebeuDe(e.target.value)}
+              className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all"
+              placeholder="Nome do supervisor anterior..."
+            />
+          </div>
+        </div>
+      </div>
+
       {isPdfModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-4">
           <div className="bg-surface border border-border rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
@@ -343,8 +410,8 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
                 <PdfReport 
                   turno={currentTurno}
                   data={new Date().toLocaleDateString('pt-BR')}
-                  supervisor="Elijane S. Nascimento"
-                  recebeuDe=""
+                  supervisor={supervisorName}
+                  recebeuDe={recebeuDe}
                   ocorrencias={ocorrencias}
                   presence={presence}
                 />

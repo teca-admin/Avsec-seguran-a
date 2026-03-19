@@ -41,40 +41,57 @@ export default function PdfReport({
 
         @media print {
           @page {
-            margin: 1cm;
+            margin: 1.5cm;
             size: A4;
           }
           
-          /* Hide everything by default */
+          /* Hide UI elements that shouldn't be printed */
+          header, footer, .btn, .no-print, [role="dialog"] > div:not(.bg-white) {
+            display: none !important;
+          }
+          
+          /* Reset layout for print */
+          body, #root, main {
+            background: white !important;
+            color: black !important;
+            display: block !important;
+            overflow: visible !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          /* Hide everything by default using visibility to keep nested structure working */
           body * {
             visibility: hidden;
           }
           
-          /* Show only the report content */
-          #pdf-report-content, #pdf-report-content * {
+          /* Show only the report content and its ancestors */
+          #pdf-report-content, 
+          #pdf-report-content * {
             visibility: visible;
           }
           
           #pdf-report-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            visibility: visible !important;
+            position: relative !important; /* Changed from absolute to fix pagination */
+            display: block !important;
+            width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            visibility: visible !important;
-            display: block !important;
+            top: 0 !important;
+            left: 0 !important;
           }
 
-          /* Force page breaks */
+          /* Force page breaks and avoid breaking inside small elements */
           .section-container {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            margin-bottom: 25px !important;
+            page-break-inside: auto !important; /* Allow sections to break across pages */
+            break-inside: auto !important;
+            margin-bottom: 30px !important;
             display: block !important;
           }
 
-          .break-inside-avoid {
+          .break-inside-avoid, tr, .channel-header, .section-title {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }

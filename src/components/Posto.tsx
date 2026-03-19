@@ -54,11 +54,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
   const fetchActiveTurno = useCallback(async () => {
     try {
+      setLoading(true);
       setError(null);
       const { data, error } = await supabase
         .schema('seguranca')
         .from('turnos')
         .select('*')
+        .eq('canal', 'geral')
         .is('fechado_em', null)
         .order('data', { ascending: false })
         .limit(1);
@@ -70,27 +72,44 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         throw error;
       }
       
+      const now = new Date();
+      const hour = now.getHours();
+      let currentShiftLetra = 'A';
+      if (hour >= 6 && hour < 12) currentShiftLetra = 'B';
+      else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
+      else if (hour >= 18) currentShiftLetra = 'D';
+
       if (data && data.length > 0) {
         const active = data[0];
+        const shiftDate = new Date(active.data);
+        const isDifferentDay = shiftDate.toISOString().split('T')[0] !== now.toISOString().split('T')[0];
+        
+        // Se for um dia diferente ou se a letra do turno for diferente da sugerida para agora,
+        // encerramos o turno antigo e iniciamos o novo.
+        if (isDifferentDay || active.letra !== currentShiftLetra) {
+          await supabase
+            .schema('seguranca')
+            .from('turnos')
+            .update({ fechado_em: now.toISOString() })
+            .eq('id', active.id);
+          
+          // Recarregar para criar o novo turno
+          return fetchActiveTurno();
+        }
+
         setActiveTurnoId(active.id);
         onTurnoChange(active.letra);
         return active.id;
       } else {
         // Se não houver turno ativo, criar um novo para o dia de hoje
-        // Baseado na hora atual para sugerir a letra do turno
-        const now = new Date();
-        const hour = now.getHours();
-        let suggestedLetra = 'A';
-        if (hour >= 6 && hour < 14) suggestedLetra = 'B';
-        else if (hour >= 14 && hour < 22) suggestedLetra = 'C';
-        
         const { data: newTurno, error: createError } = await supabase
           .schema('seguranca')
           .from('turnos')
           .insert({
-            letra: suggestedLetra,
+            letra: currentShiftLetra,
             data: now.toISOString().split('T')[0],
-            aberto_em: now.toISOString()
+            aberto_em: now.toISOString(),
+            canal: 'geral'
           })
           .select()
           .single();
@@ -114,6 +133,29 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
     return null;
   }, [onTurnoChange]);
+
+  const encerrarTurno = async () => {
+    if (!activeTurnoId) return;
+    
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .update({ fechado_em: new Date().toISOString() })
+        .eq('id', activeTurnoId);
+        
+      if (error) throw error;
+      
+      // Recarregar para criar o próximo turno
+      await fetchActiveTurno();
+    } catch (err: any) {
+      console.error('Erro ao encerrar turno:', err);
+      setError('Erro ao encerrar turno: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchPresence = useCallback(async (turnoId: string) => {
     try {
@@ -454,10 +496,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             </button>
           ))}
         </div>
-        <div className="bg-white/5 border border-white/10 rounded p-3.5">
+        <div className="bg-white/5 border border-white/10 rounded p-3.5 flex justify-between items-center">
           <p className="text-[13px] text-white/80 italic">
             Turno {turno} – {TURNOS[turno].inicio} às {TURNOS[turno].fim} em andamento.
           </p>
+          <button
+            onClick={encerrarTurno}
+            className="text-[11px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/30 transition-colors"
+          >
+            Encerrar Turno
+          </button>
         </div>
       </div>
 

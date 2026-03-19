@@ -8,9 +8,10 @@ import { supabase } from '../lib/supabase';
 
 interface SupervisorProps {
   turno: string;
+  onTurnoChange: (letra: string) => void;
 }
 
-export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
+export default function Supervisor({ turno: initialTurno, onTurnoChange }: SupervisorProps) {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [equipamentos, setEquipamentos] = useState<EquipamentoDefeito[]>([]);
@@ -161,24 +162,88 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
         .schema('seguranca')
         .from('turnos')
         .select('*')
+        .eq('canal', 'geral')
         .is('fechado_em', null)
         .order('data', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) {
         if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
         throw error;
       }
+      
+      const now = new Date();
+      const hour = now.getHours();
+      let currentShiftLetra = 'A';
+      if (hour >= 6 && hour < 12) currentShiftLetra = 'B';
+      else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
+      else if (hour >= 18) currentShiftLetra = 'D';
+
       if (data) {
+        // Se a letra do turno for diferente da sugerida para agora, encerramos e criamos um novo
+        if (data.letra !== currentShiftLetra) {
+          await supabase
+            .schema('seguranca')
+            .from('turnos')
+            .update({ fechado_em: now.toISOString() })
+            .eq('id', data.id);
+          
+          return fetchActiveTurno();
+        }
+
         setActiveTurno(data);
+        onTurnoChange(data.letra);
         return data.id;
+      } else {
+        // Se não houver turno ativo, criar um novo para o dia de hoje
+        const { data: newTurno, error: createError } = await supabase
+          .schema('seguranca')
+          .from('turnos')
+          .insert({
+            letra: currentShiftLetra,
+            data: now.toISOString().split('T')[0],
+            aberto_em: now.toISOString(),
+            canal: 'geral'
+          })
+          .select()
+          .single();
+          
+        if (createError) throw createError;
+        if (newTurno) {
+          setActiveTurno(newTurno);
+          onTurnoChange(newTurno.letra);
+          return newTurno.id;
+        }
       }
     } catch (err) {
-      console.error('Erro ao buscar turno ativo:', err);
+      console.error('Erro ao buscar/criar turno ativo:', err);
     }
     return null;
-  }, []);
+  }, [onTurnoChange]);
+
+  const encerrarTurno = async () => {
+    if (!activeTurno) return;
+    
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .update({ fechado_em: new Date().toISOString() })
+        .eq('id', activeTurno.id);
+        
+      if (error) throw error;
+      
+      // Recarregar para buscar o próximo turno ou mostrar que não há ativo
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Erro ao encerrar turno:', err);
+      setError('Erro ao encerrar turno: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let channel: any;
@@ -256,6 +321,9 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
       if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
       
       alert('Relatório enviado com sucesso via Webhook!');
+      
+      // Quando clicar em enviar o relatorio o turno deve ser zerado (encerrado)
+      await encerrarTurno();
     } catch (error: any) {
       console.error('Erro ao enviar webhook:', error);
       alert(`Erro ao enviar relatório: ${error.message}`);
@@ -337,10 +405,18 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           <div className="text-2xl font-semibold font-mono text-white">4</div>
           <div className="text-[11px] text-muted mt-0.5">com efetivo confirmado</div>
         </div>
-        <div className="card p-4">
-          <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Turno atual</div>
-          <div className="text-xl font-semibold font-mono text-white">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
-          <div className="text-[11px] text-muted mt-0.5">Elijane S. Nascimento</div>
+        <div className="card p-4 flex flex-col justify-between">
+          <div>
+            <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Turno atual</div>
+            <div className="text-xl font-semibold font-mono text-white">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
+            <div className="text-[11px] text-muted mt-0.5">Elijane S. Nascimento</div>
+          </div>
+          <button
+            onClick={encerrarTurno}
+            className="mt-3 text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/30 transition-colors w-fit"
+          >
+            Encerrar Turno
+          </button>
         </div>
       </div>
 

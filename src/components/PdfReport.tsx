@@ -20,63 +20,189 @@ export default function PdfReport({
   const t = TURNOS[turno];
 
   return (
-    <div id="pdf-report-content" className="bg-white text-black p-8 font-sans text-[12px] leading-relaxed max-w-[780px] mx-auto print:m-0 print:p-8 print:max-w-none print:w-full">
+    <div id="pdf-report-content" className="bg-white text-black font-sans text-[12px] leading-relaxed w-full max-w-[21cm] mx-auto print:m-0 print:p-0">
       <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        #pdf-report-content {
+          font-family: 'Inter', sans-serif !important;
+          color: #000 !important;
+        }
+
+        @media screen {
+          #pdf-report-content {
+            padding: 1.5cm;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            border: 1px solid #eee;
+            min-height: 29.7cm;
+          }
+        }
+
         @media print {
           @page {
-            margin: 1.5cm;
-            size: auto;
+            margin: 1cm;
+            size: A4;
           }
+          
+          /* Hide everything by default */
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
+          
+          /* Show only the report content */
           #pdf-report-content, #pdf-report-content * {
-            visibility: visible !important;
+            visibility: visible;
           }
+          
           #pdf-report-content {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
             margin: 0 !important;
             padding: 0 !important;
-            background: white !important;
+            visibility: visible !important;
+            display: block !important;
           }
-          .no-print {
-            display: none !important;
-          }
+
+          /* Force page breaks */
           .section-container {
-            page-break-inside: avoid;
-            margin-bottom: 20px;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-bottom: 25px !important;
+            display: block !important;
+          }
+
+          .break-inside-avoid {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* Remove shadows and borders for print */
+          #pdf-report-content {
+            box-shadow: none !important;
+            border: none !important;
           }
         }
-        .section-container {
+
+        .report-header-band {
+          background-color: #1A5276 !important;
+          -webkit-print-color-adjust: exact;
+          color: white !important;
+          padding: 25px 20px;
+          text-align: center;
+          width: 100%;
+          margin-bottom: 30px;
+        }
+        
+        .section-title {
+          background-color: #1A5276 !important;
+          -webkit-print-color-adjust: exact;
+          color: white !important;
+          font-size: 11px;
+          font-weight: bold;
+          padding: 8px 15px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 0;
+        }
+
+        .section-content {
+          border: 1px solid #1A5276;
+          padding: 15px;
+          background-color: #FFFFFF;
           margin-bottom: 20px;
         }
+
+        .channel-header {
+          background-color: #EBF5FB !important;
+          -webkit-print-color-adjust: exact;
+          border-left: 5px solid #1A5276;
+          color: #1A5276;
+          font-weight: bold;
+          padding: 8px 12px;
+          margin-bottom: 10px;
+          text-transform: uppercase;
+          font-size: 10px;
+        }
+
+        .efetivo-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 15px;
+        }
+
+        .efetivo-table th {
+          background-color: #F8F9F9 !important;
+          -webkit-print-color-adjust: exact;
+          border: 1px solid #D5DBDB;
+          padding: 6px 10px;
+          text-align: left;
+          font-weight: bold;
+          font-size: 10px;
+          color: #2C3E50;
+        }
+
+        .efetivo-table td {
+          border: 1px solid #D5DBDB;
+          padding: 6px 10px;
+          font-size: 11px;
+          color: #2C3E50;
+        }
+
+        .efetivo-table tr:nth-child(even) {
+          background-color: #FBFCFC !important;
+          -webkit-print-color-adjust: exact;
+        }
+
+        .footer-line {
+          border-top: 2px solid #1A5276;
+          margin-top: 50px;
+          padding-top: 15px;
+          display: flex;
+          justify-content: space-between;
+          font-size: 10px;
+          color: #2C3E50;
+        }
+
+        .signature-block {
+          text-align: center;
+          min-width: 250px;
+        }
+
+        .signature-line {
+          border-top: 1px solid #2C3E50;
+          margin-top: 40px;
+          margin-bottom: 8px;
+        }
       `}} />
-      <div className="text-center border-b-2 border-[#1a5276] pb-4 mb-6">
-        <div className="text-[10px] text-[#666] mb-1 uppercase tracking-widest font-bold">WFS · Proteção Aeroportuária</div>
-        <h1 className="text-lg font-bold text-[#1a5276] mb-0.5">RELATÓRIO DE PASSAGEM DE SERVIÇO</h1>
-        <div className="text-xs text-[#333] font-medium">Aeroporto Internacional de Manaus "Eduardo Gomes"</div>
-        <div className="flex justify-center gap-8 mt-3 text-[11px] text-[#444]">
+
+      {/* Header Band */}
+      <div className="report-header-band">
+        <h1 className="text-xl font-bold m-0 tracking-wide">PASSAGEM DE SERVIÇO DOS POSTOS DE PROTEÇÃO</h1>
+        <div className="text-base mt-1 font-semibold opacity-90">Aeroporto Internacional de Manaus "Eduardo Gomes"</div>
+        <div className="text-[12px] mt-4 pt-3 border-t border-white/20 font-medium flex justify-center gap-6">
           <span><b>DATA:</b> {data}</span>
+          <span>/</span>
           <span><b>TURNO:</b> {t.letra} ({t.inicio} – {t.fim})</span>
+          <span>/</span>
           <span><b>SUPERVISOR:</b> {supervisor}</span>
         </div>
       </div>
 
+      {/* 1. Recebimento */}
       <div className="section-container">
-        <div className="bg-[#1a5276] text-white text-[11px] font-bold px-3 py-1.5 uppercase tracking-widest rounded-t flex justify-between">
-          <span>1. Recebimento de Serviço</span>
-        </div>
-        <div className="border border-[#ddd] border-t-0 p-4 rounded-b bg-[#fcfcfc]">
+        <div className="section-title">1. Recebimento de Serviço</div>
+        <div className="section-content">
           <p className="text-[12px]">Eu, <b>{supervisor}</b>, assumi o posto de Supervisor AVSEC, tendo recebido o serviço de <b>{recebeuDe || '—'}</b>, ciente de todas as normas, procedimentos e diretrizes em vigor para o referido turno.</p>
         </div>
       </div>
 
+      {/* 2. Efetivo */}
       <div className="section-container">
-        <div className="bg-[#1a5276] text-white text-[11px] font-bold px-3 py-1.5 uppercase tracking-widest rounded-t">2. Efetivo em Serviço</div>
-        <div className="border border-[#ddd] border-t-0 p-4 rounded-b space-y-5 bg-[#fcfcfc]">
+        <div className="section-title">2. Efetivo em Serviço</div>
+        <div className="section-content space-y-8">
           {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map(c => {
             const config = CANAL_CONFIG[c];
             const data = EFETIVO_BASE[c];
@@ -86,80 +212,79 @@ export default function PdfReport({
             if (presentes6.length === 0 && presentes4.length === 0) return null;
 
             return (
-              <div key={c} className="border border-[#eee] rounded overflow-hidden">
-                <div className="bg-[#f0f7fa] border-b border-[#eee] px-3 py-1.5 text-[11px] font-bold text-[#1a5276] uppercase flex justify-between items-center">
+              <div key={c} className="break-inside-avoid">
+                <div className="channel-header flex justify-between items-center">
                   <span>{config.name}</span>
-                  <span className="text-[9px] font-normal text-[#666]">Total: {presentes6.length + presentes4.length} agentes</span>
+                  <span className="text-[9px] font-normal">Total: {presentes6.length + presentes4.length} agentes</span>
                 </div>
                 
-                <div className="p-2 space-y-4">
-                  {presentes6.length > 0 && (
-                    <div>
-                      <div className="text-[9px] font-bold text-[#888] uppercase tracking-wider mb-1 px-1">Agentes de Proteção – 06h</div>
-                      <table className="w-full border-collapse text-[11px]">
-                        <thead>
-                          <tr className="bg-[#f8f8f8]">
-                            <th className="p-1.5 px-2 border border-[#eee] font-bold text-left w-20">Matrícula</th>
-                            <th className="p-1.5 px-2 border border-[#eee] font-bold text-left">Nome Completo</th>
-                            <th className="p-1.5 px-2 border border-[#eee] font-bold text-left w-24">Horário</th>
+                {presentes6.length > 0 && (
+                  <div className="mb-6">
+                    <div className="text-[10px] font-bold text-[#1A5276] uppercase mb-2 px-1">Agentes de Proteção – Jornada 06h</div>
+                    <table className="efetivo-table">
+                      <thead>
+                        <tr>
+                          <th className="w-24">Matrícula</th>
+                          <th>Nome Completo</th>
+                          <th className="w-32">Horário de Trabalho</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {presentes6.map(a => (
+                          <tr key={a.mat}>
+                            <td className="font-mono font-medium">{a.mat}</td>
+                            <td>{a.nome}</td>
+                            <td>{a.turno}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {presentes6.map(a => (
-                            <tr key={a.mat} className="hover:bg-[#fafafa]">
-                              <td className="p-1.5 px-2 border border-[#eee] font-mono">{a.mat}</td>
-                              <td className="p-1.5 px-2 border border-[#eee]">{a.nome}</td>
-                              <td className="p-1.5 px-2 border border-[#eee]">{a.turno}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                  {presentes4.length > 0 && (
-                    <div>
-                      <div className="text-[9px] font-bold text-[#888] uppercase tracking-wider mb-1 px-1">Agentes de Proteção – 04h</div>
-                      <table className="w-full border-collapse text-[11px]">
-                        <thead>
-                          <tr className="bg-[#f8f8f8]">
-                            <th className="p-1.5 px-2 border border-[#eee] font-bold text-left w-20">Matrícula</th>
-                            <th className="p-1.5 px-2 border border-[#eee] font-bold text-left">Nome Completo</th>
-                            <th className="p-1.5 px-2 border border-[#eee] font-bold text-left w-24">Horário</th>
+                {presentes4.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-bold text-[#1A5276] uppercase mb-2 px-1">Agentes de Proteção – Jornada 04h</div>
+                    <table className="efetivo-table">
+                      <thead>
+                        <tr>
+                          <th className="w-24">Matrícula</th>
+                          <th>Nome Completo</th>
+                          <th className="w-32">Horário de Trabalho</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {presentes4.map(a => (
+                          <tr key={a.mat}>
+                            <td className="font-mono font-medium">{a.mat}</td>
+                            <td>{a.nome}</td>
+                            <td>{a.turno}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {presentes4.map(a => (
-                            <tr key={a.mat} className="hover:bg-[#fafafa]">
-                              <td className="p-1.5 px-2 border border-[#eee] font-mono">{a.mat}</td>
-                              <td className="p-1.5 px-2 border border-[#eee]">{a.nome}</td>
-                              <td className="p-1.5 px-2 border border-[#eee]">{a.turno}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
+      {/* 3. Ocorrências */}
       {ocorrencias.length > 0 && (
         <div className="section-container">
-          <div className="bg-[#1a5276] text-white text-[11px] font-bold px-3 py-1.5 uppercase tracking-widest rounded-t">3. Registro de Ocorrências</div>
-          <div className="border border-[#ddd] border-t-0 p-4 rounded-b space-y-3 bg-[#fcfcfc]">
+          <div className="section-title">3. Registro de Ocorrências</div>
+          <div className="section-content space-y-5">
             {ocorrencias.map((o, i) => (
-              <div key={i} className="mb-3 p-3 border border-[#eee] border-l-4 border-[#1a5276] bg-white rounded-r">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-[#f0f7fa] text-[#1a5276] border border-[#d0e7f0]">{o.tipo}</span>
-                  <span className="text-[10px] text-[#666] font-bold">{o.hora}</span>
+              <div key={i} className="p-4 border border-gray-200 border-l-4 border-[#1A5276] bg-white rounded-r break-inside-avoid shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[10px] font-bold uppercase px-3 py-1 rounded bg-[#EBF5FB] text-[#1A5276]">{o.tipo}</span>
+                  <span className="text-[11px] text-gray-600 font-bold">{o.hora}</span>
                 </div>
-                <div className="text-[12px] text-[#333] whitespace-pre-wrap leading-relaxed">{o.desc}</div>
+                <div className="text-[12px] text-gray-800 whitespace-pre-wrap leading-relaxed">{o.desc}</div>
                 {o.agente && (
-                  <div className="text-[9px] text-[#888] mt-2 pt-2 border-t border-[#f5f5f5] italic">
+                  <div className="text-[10px] text-gray-500 mt-3 pt-3 border-t border-gray-100 italic">
                     <b>Envolvido(s):</b> {o.agente}
                   </div>
                 )}
@@ -169,28 +294,29 @@ export default function PdfReport({
         </div>
       )}
 
+      {/* 4. Equipamentos */}
       {equipamentos && equipamentos.length > 0 && (
         <div className="section-container">
-          <div className="bg-[#1a5276] text-white text-[11px] font-bold px-3 py-1.5 uppercase tracking-widest rounded-t">4. Equipamentos com Defeito</div>
-          <div className="border border-[#ddd] border-t-0 p-4 rounded-b bg-[#fcfcfc]">
-            <table className="w-full border-collapse text-[11px]">
+          <div className="section-title">4. Equipamentos com Defeito</div>
+          <div className="section-content">
+            <table className="efetivo-table">
               <thead>
-                <tr className="bg-[#f8f8f8]">
-                  <th className="p-2 border border-[#eee] font-bold text-left">Equipamento</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left">Local</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left">Descrição do Defeito</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left w-24">OS</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left w-24">Prazo</th>
+                <tr>
+                  <th>Equipamento</th>
+                  <th>Localização</th>
+                  <th>Descrição do Defeito</th>
+                  <th className="w-24">Nº O.S.</th>
+                  <th className="w-24">Prazo Previsto</th>
                 </tr>
               </thead>
               <tbody>
                 {equipamentos.map((e, i) => (
-                  <tr key={i} className="hover:bg-[#fafafa]">
-                    <td className="p-2 border border-[#eee] font-medium">{e.tipo}</td>
-                    <td className="p-2 border border-[#eee]">{e.local}</td>
-                    <td className="p-2 border border-[#eee] text-[10px] leading-tight">{e.descricao}</td>
-                    <td className="p-2 border border-[#eee] font-mono text-[10px]">{e.os || '—'}</td>
-                    <td className="p-2 border border-[#eee] text-[10px]">{e.prazo || '—'}</td>
+                  <tr key={i}>
+                    <td className="font-bold text-[#1A5276]">{e.tipo}</td>
+                    <td>{e.local}</td>
+                    <td className="text-[11px] leading-snug">{e.descricao}</td>
+                    <td className="font-mono text-[11px]">{e.os || '—'}</td>
+                    <td className="text-[11px]">{e.prazo || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -199,56 +325,58 @@ export default function PdfReport({
         </div>
       )}
 
+      {/* 5. Fluxo */}
       {paxFlow && (paxFlow.total || paxFlow.pico || paxFlow.obs) && (
         <div className="section-container">
-          <div className="bg-[#1a5276] text-white text-[11px] font-bold px-3 py-1.5 uppercase tracking-widest rounded-t">5. Fluxo de Passageiros</div>
-          <div className="border border-[#ddd] border-t-0 p-4 rounded-b bg-[#fcfcfc]">
-            <div className="grid grid-cols-3 gap-6 mb-4">
-              <div className="p-3 bg-white border border-[#eee] rounded shadow-sm text-center">
-                <div className="text-[9px] text-[#888] uppercase font-bold mb-1">Total de Passageiros</div>
-                <div className="text-lg font-bold text-[#1a5276]">{paxFlow.total || '0'}</div>
+          <div className="section-title">5. Fluxo de Passageiros</div>
+          <div className="section-content">
+            <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="p-3 border border-gray-200 rounded-lg text-center bg-gray-50">
+                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Total Passageiros</div>
+                <div className="text-xl font-bold text-[#1A5276]">{paxFlow.total || '0'}</div>
               </div>
-              <div className="p-3 bg-white border border-[#eee] rounded shadow-sm text-center">
-                <div className="text-[9px] text-[#888] uppercase font-bold mb-1">Pico de Passageiros</div>
-                <div className="text-lg font-bold text-[#1a5276]">{paxFlow.pico || '0'}</div>
+              <div className="p-3 border border-gray-200 rounded-lg text-center bg-gray-50">
+                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Pico de Fluxo</div>
+                <div className="text-xl font-bold text-[#1A5276]">{paxFlow.pico || '0'}</div>
               </div>
-              <div className="p-3 bg-white border border-[#eee] rounded shadow-sm text-center">
-                <div className="text-[9px] text-[#888] uppercase font-bold mb-1">Horário de Pico</div>
-                <div className="text-lg font-bold text-[#1a5276]">{paxFlow.horaPico || '—'}</div>
+              <div className="p-3 border border-gray-200 rounded-lg text-center bg-gray-50">
+                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Horário de Pico</div>
+                <div className="text-xl font-bold text-[#1A5276]">{paxFlow.horaPico || '—'}</div>
               </div>
             </div>
             {paxFlow.obs && (
-              <div className="text-[12px] text-[#333] p-3 bg-white border border-[#eee] rounded">
-                <b className="text-[#1a5276] uppercase text-[10px] block mb-1">Observações:</b>
-                {paxFlow.obs}
+              <div className="text-[12px] text-gray-700 p-4 bg-white border border-gray-200 rounded-lg">
+                <b className="text-[#1A5276] uppercase text-[10px] block mb-2 border-b border-gray-100 pb-1">Observações Adicionais:</b>
+                <div className="whitespace-pre-wrap">{paxFlow.obs}</div>
               </div>
             )}
           </div>
         </div>
       )}
 
+      {/* 6. Voos */}
       {voos && voos.length > 0 && (
         <div className="section-container">
-          <div className="bg-[#1a5276] text-white text-[11px] font-bold px-3 py-1.5 uppercase tracking-widest rounded-t">6. Voos Internacionais</div>
-          <div className="border border-[#ddd] border-t-0 p-4 rounded-b bg-[#fcfcfc]">
-            <table className="w-full border-collapse text-[11px]">
+          <div className="section-title">6. Voos Internacionais</div>
+          <div className="section-content">
+            <table className="efetivo-table">
               <thead>
-                <tr className="bg-[#f8f8f8]">
-                  <th className="p-2 border border-[#eee] font-bold text-left">Voo</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left">Horário</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left">Módulo</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left">APF</th>
-                  <th className="p-2 border border-[#eee] font-bold text-left">Pax</th>
+                <tr>
+                  <th>Nº Voo</th>
+                  <th>Horário</th>
+                  <th>Módulo</th>
+                  <th>APF Responsável</th>
+                  <th>Total Pax</th>
                 </tr>
               </thead>
               <tbody>
                 {voos.map((v, i) => (
-                  <tr key={i} className="hover:bg-[#fafafa]">
-                    <td className="p-2 border border-[#eee] font-bold text-[#1a5276]">{v.numero}</td>
-                    <td className="p-2 border border-[#eee]">{v.horario}</td>
-                    <td className="p-2 border border-[#eee]">{v.modulo}</td>
-                    <td className="p-2 border border-[#eee]">{v.apf}</td>
-                    <td className="p-2 border border-[#eee] font-bold">{v.pax}</td>
+                  <tr key={i}>
+                    <td className="font-bold text-[#1A5276]">{v.numero}</td>
+                    <td>{v.horario}</td>
+                    <td>{v.modulo}</td>
+                    <td>{v.apf}</td>
+                    <td className="font-bold">{v.pax}</td>
                   </tr>
                 ))}
               </tbody>
@@ -257,15 +385,16 @@ export default function PdfReport({
         </div>
       )}
 
-      <div className="mt-10 pt-4 border-t-2 border-[#1a5276] flex justify-between text-[11px] text-[#444]">
+      {/* Footer */}
+      <div className="footer-line">
         <div>
-          <p><b>Local:</b> Manaus, AM</p>
-          <p><b>Data de Emissão:</b> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</p>
+          <p><b>Localidade:</b> Manaus, AM</p>
+          <p><b>Relatório gerado em:</b> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</p>
         </div>
-        <div className="text-center min-w-[250px]">
-          <div className="border-t border-[#333] w-full mt-8 mb-1"></div>
-          <div className="text-[12px] font-bold text-[#1a5276] uppercase">{supervisor}</div>
-          <div className="text-[10px] text-[#666] font-medium tracking-widest">SUPERVISOR AVSEC · WFS</div>
+        <div className="signature-block">
+          <div className="signature-line"></div>
+          <div className="text-[13px] font-bold text-[#1A5276] uppercase">{supervisor}</div>
+          <div className="text-[11px] text-gray-600 font-semibold">Supervisor AVSEC · WFS</div>
         </div>
       </div>
     </div>

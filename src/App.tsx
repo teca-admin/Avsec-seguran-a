@@ -40,6 +40,7 @@ export default function App() {
                 <ul className="mt-2 space-y-1.5 text-[13px] text-muted list-disc list-inside">
                   <li><code>VITE_SUPABASE_URL</code></li>
                   <li><code>VITE_SUPABASE_ANON_KEY</code></li>
+                  <li><code>VITE_N8N_WEBHOOK_URL</code> (Opcional)</li>
                 </ul>
               </div>
             </div>

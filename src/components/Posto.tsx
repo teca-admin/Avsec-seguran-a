@@ -454,8 +454,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             </button>
           ))}
         </div>
-        <div className="bg-accent/10 border border-accent/20 rounded p-3.5">
-          <p className="text-[13px] text-accent italic">
+        <div className="bg-white/5 border border-white/10 rounded p-3.5">
+          <p className="text-[13px] text-white/80 italic">
             Turno {turno} – {TURNOS[turno].inicio} às {TURNOS[turno].fim} em andamento.
           </p>
         </div>
@@ -823,7 +823,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <button 
                   onClick={handleSavePaxFlow}
                   disabled={isSavingPax}
-                  className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-accent hover:opacity-90 text-black rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2"
                 >
                   {isSavingPax ? (
                     <Loader2 className="animate-spin" size={16} />

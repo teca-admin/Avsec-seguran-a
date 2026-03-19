@@ -20,7 +20,33 @@ export default function PdfReport({
   const t = TURNOS[turno];
 
   return (
-    <div id="pdf-report-content" className="bg-white text-black p-8 font-sans text-[12px] leading-relaxed max-w-[780px] mx-auto">
+    <div id="pdf-report-content" className="bg-white text-black p-8 font-sans text-[12px] leading-relaxed max-w-[780px] mx-auto print:m-0 print:p-8 print:max-w-none print:w-full">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            margin: 1.5cm;
+            size: auto;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #pdf-report-content, #pdf-report-content * {
+            visibility: visible !important;
+          }
+          #pdf-report-content {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}} />
       <div className="text-center border-b-2 border-[#1a5276] pb-4 mb-5">
         <div className="text-[10px] text-[#666] mb-1 uppercase tracking-widest">WFS · Proteção Aeroportuária</div>
         <h1 className="text-base font-bold text-[#1a5276] mb-0.5">PASSAGEM DE SERVIÇO DOS POSTOS DE PROTEÇÃO</h1>

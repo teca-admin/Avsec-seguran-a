@@ -41,6 +41,17 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   });
   const [isSavingPax, setIsSavingPax] = useState(false);
 
+  // Estados para Voos Internacionais
+  const [voos, setVoos] = useState<any[]>([]);
+  const [novoVoo, setNovoVoo] = useState({
+    numero: '',
+    horario: '',
+    modulo: '',
+    apf: '',
+    pax: ''
+  });
+  const [isSavingVoo, setIsSavingVoo] = useState(false);
+
   const fetchActiveTurno = useCallback(async () => {
     try {
       setError(null);
@@ -173,6 +184,21 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   }, []);
 
+  const fetchVoos = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('voos_internacionais')
+        .select('*')
+        .eq('turno_id', turnoId);
+
+      if (error) throw error;
+      if (data) setVoos(data);
+    } catch (err) {
+      console.error('Erro ao buscar voos:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -182,13 +208,14 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           fetchPresence(turnoId),
           fetchOcorrencias(turnoId),
           fetchEquipamentos(turnoId),
-          fetchPaxFlow(turnoId)
+          fetchPaxFlow(turnoId),
+          fetchVoos(turnoId)
         ]);
       }
       setLoading(false);
     };
     init();
-  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow]);
+  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos]);
 
   const togglePresence = async (mat: string) => {
     console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId);
@@ -239,8 +266,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           hora: data.hora,
           descricao: data.desc,
           agente: data.agente,
-          ts: data.ts,
-          registrado_em: new Date().toISOString()
+          ts: data.ts
         })
         .select()
         .single();
@@ -320,6 +346,48 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       alert('Erro ao salvar fluxo de passageiros no banco de dados: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setIsSavingPax(false);
+    }
+  };
+
+  const handleSaveVoo = async () => {
+    if (!activeTurnoId || !novoVoo.numero || !novoVoo.horario) {
+      alert('Por favor, preencha o número do voo e o horário.');
+      return;
+    }
+    setIsSavingVoo(true);
+
+    try {
+      const { data: inserted, error } = await supabase
+        .schema('seguranca')
+        .from('voos_internacionais')
+        .insert({
+          turno_id: activeTurnoId,
+          numero: novoVoo.numero,
+          horario: novoVoo.horario,
+          modulo: novoVoo.modulo,
+          apf: novoVoo.apf,
+          pax: novoVoo.pax
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (inserted) {
+        setVoos(prev => [inserted, ...prev]);
+        setNovoVoo({
+          numero: '',
+          horario: '',
+          modulo: '',
+          apf: '',
+          pax: ''
+        });
+        alert('Voo registrado com sucesso!');
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar voo:', err);
+      alert('Erro ao salvar voo no banco de dados: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsSavingVoo(false);
     }
   };
 
@@ -498,83 +566,107 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         </div>
       )}
 
-      {/* Outras abas */}
       {activeTab === 'equipamentos' && (
-        <div className="space-y-4">
-          <div className="card">
-            <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
-              Registrar Equipamento com Defeito
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-mono text-hint">Tipo/Equipamento</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={novoEquipamento.tipo}
-                  onChange={e => setNovoEquipamento({...novoEquipamento, tipo: e.target.value})}
-                  placeholder="Ex: Raio-X, Pórtico..."
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-mono text-hint">Local</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={novoEquipamento.local}
-                  onChange={e => setNovoEquipamento({...novoEquipamento, local: e.target.value})}
-                  placeholder="Ex: Canal Alfa"
-                />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-[10px] uppercase font-mono text-hint">Descrição do Defeito</label>
-                <textarea 
-                  className="input-field min-h-[60px]" 
-                  value={novoEquipamento.descricao}
-                  onChange={e => setNovoEquipamento({...novoEquipamento, descricao: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-mono text-hint">Nº Ordem de Serviço (OS)</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={novoEquipamento.os}
-                  onChange={e => setNovoEquipamento({...novoEquipamento, os: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-mono text-hint">Prazo de Reparo</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={novoEquipamento.prazo}
-                  onChange={e => setNovoEquipamento({...novoEquipamento, prazo: e.target.value})}
-                />
+        <div className="space-y-6">
+          <div className="card border-l-4 border-amber-500">
+            <div className="p-4 border-b border-border-2 flex items-center justify-between bg-amber-500/5">
+              <div className="flex items-center gap-2">
+                <HardDrive size={16} className="text-amber-500" />
+                <span className="text-xs font-mono uppercase tracking-widest font-bold text-amber-500">
+                  Registrar Equipamento com Defeito
+                </span>
               </div>
             </div>
-            <button 
-              onClick={handleSaveEquipamento}
-              className="btn-primary w-full mt-4"
-            >
-              Registrar Equipamento
-            </button>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Tipo/Equipamento</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    value={novoEquipamento.tipo}
+                    onChange={e => setNovoEquipamento({...novoEquipamento, tipo: e.target.value})}
+                    placeholder="Ex: Raio-X, Pórtico..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Local</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    value={novoEquipamento.local}
+                    onChange={e => setNovoEquipamento({...novoEquipamento, local: e.target.value})}
+                    placeholder="Ex: Canal Alfa"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Descrição do Defeito</label>
+                  <textarea 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all min-h-[80px] resize-none" 
+                    value={novoEquipamento.descricao}
+                    onChange={e => setNovoEquipamento({...novoEquipamento, descricao: e.target.value})}
+                    placeholder="Descreva detalhadamente o problema..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Nº Ordem de Serviço (OS)</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    value={novoEquipamento.os}
+                    onChange={e => setNovoEquipamento({...novoEquipamento, os: e.target.value})}
+                    placeholder="Ex: 12345/2024"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Prazo de Reparo</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    value={novoEquipamento.prazo}
+                    onChange={e => setNovoEquipamento({...novoEquipamento, prazo: e.target.value})}
+                    placeholder="Ex: 24 horas, Imediato..."
+                  />
+                </div>
+              </div>
+              <button 
+                onClick={handleSaveEquipamento}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
+              >
+                <HardDrive size={16} />
+                Enviar Registro de Equipamento
+              </button>
+            </div>
           </div>
 
           {equipamentos.length > 0 && (
-            <div className="card">
-              <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
+            <div className="space-y-3">
+              <div className="text-[11px] font-mono text-muted uppercase tracking-widest pb-2 border-b border-border-2 flex items-center gap-2">
+                <ClipboardList size={14} />
                 Equipamentos Registrados no Turno
               </div>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-3">
                 {equipamentos.map((eq, i) => (
-                  <div key={i} className="p-2 border border-border-2 rounded bg-surface-2 text-xs">
-                    <div className="flex justify-between font-mono text-[10px] text-hint mb-1">
-                      <span>{eq.local}</span>
-                      <span>OS: {eq.os}</span>
+                  <div key={i} className="card p-4 border-l-4 border-amber-500/50 bg-surface-2">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="font-bold text-sm text-text">{eq.tipo}</div>
+                      <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        OS: {eq.os || 'N/A'}
+                      </div>
                     </div>
-                    <div className="font-medium">{eq.tipo}</div>
-                    <div className="text-muted mt-1">{eq.descricao}</div>
+                    <div className="text-xs text-muted mb-3 leading-relaxed">
+                      {eq.descricao}
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-border-2 text-[10px] font-mono text-hint">
+                      <div className="flex items-center gap-1">
+                        <span className="uppercase">Local:</span>
+                        <span className="text-text">{eq.local}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="uppercase">Prazo:</span>
+                        <span className="text-text">{eq.prazo || '—'}</span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -584,55 +676,165 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       )}
 
       {activeTab === 'passageiros' && (
-        <div className="card">
-          <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
-            Fluxo de Passageiros
+        <div className="space-y-6">
+          <div className="card border-l-4 border-blue-500">
+            <div className="p-4 border-b border-border-2 flex items-center justify-between bg-blue-500/5">
+              <div className="flex items-center gap-2">
+                <Plane size={16} className="text-blue-500" />
+                <span className="text-xs font-mono uppercase tracking-widest font-bold text-blue-500">
+                  Fluxo de Passageiros e Voos
+                </span>
+              </div>
+            </div>
+            <div className="p-5 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Total de Passageiros</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all" 
+                    value={paxFlow.total}
+                    onChange={e => setPaxFlow({...paxFlow, total: e.target.value})}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Pico de Passageiros</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all" 
+                    value={paxFlow.pico}
+                    onChange={e => setPaxFlow({...paxFlow, pico: e.target.value})}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Horário do Pico</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all" 
+                    value={paxFlow.horaPico}
+                    onChange={e => setPaxFlow({...paxFlow, horaPico: e.target.value})}
+                    placeholder="00:00"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-3">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Observações Gerais</label>
+                  <textarea 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all min-h-[80px] resize-none" 
+                    value={paxFlow.obs}
+                    onChange={e => setPaxFlow({...paxFlow, obs: e.target.value})}
+                    placeholder="Descreva o fluxo do turno ou observações relevantes..."
+                  />
+                </div>
+              </div>
+              
+              <div className="pt-6 border-t border-border-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <Plane size={16} className="text-blue-500" />
+                  <span className="text-xs font-mono uppercase tracking-widest font-bold text-blue-500">
+                    Registro de Voos Internacionais
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">Voo</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      value={novoVoo.numero}
+                      onChange={e => setNovoVoo({...novoVoo, numero: e.target.value})}
+                      placeholder="Ex: AD8765"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">Horário</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      value={novoVoo.horario}
+                      onChange={e => setNovoVoo({...novoVoo, horario: e.target.value})}
+                      placeholder="00:00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">Módulo</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      value={novoVoo.modulo}
+                      onChange={e => setNovoVoo({...novoVoo, modulo: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">APF</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      value={novoVoo.apf}
+                      onChange={e => setNovoVoo({...novoVoo, apf: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">Pax</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      value={novoVoo.pax}
+                      onChange={e => setNovoVoo({...novoVoo, pax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <button 
+                  type="button"
+                  onClick={handleSaveVoo}
+                  disabled={isSavingVoo}
+                  className="w-full py-2 border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 text-blue-500 rounded text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all mb-6"
+                >
+                  {isSavingVoo ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+                  Registrar Voo Internacional
+                </button>
+
+                {voos.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Voos Registrados</div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {voos.map((v, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 px-3 bg-surface-2 border border-border-2 rounded text-[11px]">
+                          <div className="flex items-center gap-4">
+                            <span className="font-bold text-blue-500">{v.numero}</span>
+                            <span className="text-muted">{v.horario}</span>
+                            <span className="text-muted">Módulo: {v.modulo || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-muted">APF: {v.apf || '—'}</span>
+                            <span className="font-mono bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">Pax: {v.pax || '0'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-border-2">
+                <button 
+                  onClick={handleSavePaxFlow}
+                  disabled={isSavingPax}
+                  className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+                >
+                  {isSavingPax ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Plane size={16} />
+                  )}
+                  Salvar Resumo do Fluxo
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-mono text-hint">Total de Passageiros</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                value={paxFlow.total}
-                onChange={e => setPaxFlow({...paxFlow, total: e.target.value})}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-mono text-hint">Pico de Passageiros</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                value={paxFlow.pico}
-                onChange={e => setPaxFlow({...paxFlow, pico: e.target.value})}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-mono text-hint">Horário do Pico</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                value={paxFlow.horaPico}
-                onChange={e => setPaxFlow({...paxFlow, horaPico: e.target.value})}
-              />
-            </div>
-            <div className="space-y-1 md:col-span-3">
-              <label className="text-[10px] uppercase font-mono text-hint">Observações / Voos Internacionais</label>
-              <textarea 
-                className="input-field min-h-[100px]" 
-                value={paxFlow.obs}
-                onChange={e => setPaxFlow({...paxFlow, obs: e.target.value})}
-                placeholder="Descreva o fluxo ou liste voos internacionais..."
-              />
-            </div>
-          </div>
-          <button 
-            onClick={handleSavePaxFlow}
-            disabled={isSavingPax}
-            className="btn-primary w-full mt-4"
-          >
-            {isSavingPax ? 'Salvando...' : 'Salvar Fluxo'}
-          </button>
         </div>
       )}
 

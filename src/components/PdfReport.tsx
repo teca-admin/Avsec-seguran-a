@@ -41,27 +41,19 @@ export default function PdfReport({
 
         @media print {
           @page {
-            margin: 1.5cm;
             size: A4;
+            margin: 15mm;
           }
           
-          /* Hide UI elements that shouldn't be printed */
-          header, footer, .btn, .no-print, [role="dialog"] > div:not(.bg-white) {
-            display: none !important;
-          }
-          
-          /* Reset layout for print */
-          body, #root, main {
-            background: white !important;
-            color: black !important;
-            display: block !important;
-            overflow: visible !important;
-            height: auto !important;
+          body {
             margin: 0 !important;
             padding: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
-          /* Hide everything by default using visibility to keep nested structure working */
+          /* Hide everything by default */
           body * {
             visibility: hidden;
           }
@@ -73,33 +65,49 @@ export default function PdfReport({
           }
           
           #pdf-report-content {
-            visibility: visible !important;
-            position: relative !important; /* Changed from absolute to fix pagination */
-            display: block !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            position: absolute !important;
             top: 0 !important;
             left: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            display: block !important;
+          }
+
+          /* Reset ancestors to ensure they don't interfere with layout or create extra pages */
+          #root, main, .fixed, [role="dialog"], .bg-surface-3, .bg-white.shadow-lg {
+            position: static !important;
+            display: block !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
           }
 
           /* Force page breaks and avoid breaking inside small elements */
           .section-container {
-            page-break-inside: auto !important; /* Allow sections to break across pages */
+            page-break-inside: auto !important;
             break-inside: auto !important;
-            margin-bottom: 30px !important;
+            margin-bottom: 25px !important;
             display: block !important;
+            width: 100% !important;
           }
 
-          .break-inside-avoid, tr, .channel-header, .section-title {
+          .break-inside-avoid, tr, .channel-header, .section-title, .signature-block {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
-          /* Remove shadows and borders for print */
-          #pdf-report-content {
-            box-shadow: none !important;
-            border: none !important;
+          /* Hide UI elements that shouldn't be printed */
+          header, footer, .btn, .no-print, [role="dialog"] button {
+            display: none !important;
           }
         }
 

@@ -125,6 +125,93 @@ export default function PdfReport({
         </div>
       )}
 
+      {equipamentos && equipamentos.length > 0 && (
+        <div className="mb-5">
+          <div className="bg-[#1a5276] text-white text-[11px] font-semibold px-3 py-1.5 uppercase tracking-widest rounded-t">4. Equipamentos com Defeito</div>
+          <div className="border border-[#ddd] border-t-0 p-3 rounded-b">
+            <table className="w-full border-collapse text-[10px]">
+              <thead>
+                <tr className="bg-[#f5f5f5]">
+                  <th className="p-1.5 border border-[#ddd] text-left">Equipamento</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">Local</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">Descrição do Defeito</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">OS</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">Prazo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {equipamentos.map((e, i) => (
+                  <tr key={i}>
+                    <td className="p-1.5 border border-[#ddd]">{e.tipo}</td>
+                    <td className="p-1.5 border border-[#ddd]">{e.local}</td>
+                    <td className="p-1.5 border border-[#ddd]">{e.descricao}</td>
+                    <td className="p-1.5 border border-[#ddd]">{e.os || '—'}</td>
+                    <td className="p-1.5 border border-[#ddd]">{e.prazo || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {paxFlow && (paxFlow.total || paxFlow.pico || paxFlow.obs) && (
+        <div className="mb-5">
+          <div className="bg-[#1a5276] text-white text-[11px] font-semibold px-3 py-1.5 uppercase tracking-widest rounded-t">5. Fluxo de Passageiros</div>
+          <div className="border border-[#ddd] border-t-0 p-3 rounded-b">
+            <div className="grid grid-cols-3 gap-4 mb-3">
+              <div className="p-2 bg-[#f9f9f9] border border-[#eee] rounded">
+                <div className="text-[9px] text-[#666] uppercase font-bold mb-0.5">Total de Pax</div>
+                <div className="text-sm font-bold text-[#1a5276]">{paxFlow.total || '—'}</div>
+              </div>
+              <div className="p-2 bg-[#f9f9f9] border border-[#eee] rounded">
+                <div className="text-[9px] text-[#666] uppercase font-bold mb-0.5">Pico de Pax</div>
+                <div className="text-sm font-bold text-[#1a5276]">{paxFlow.pico || '—'}</div>
+              </div>
+              <div className="p-2 bg-[#f9f9f9] border border-[#eee] rounded">
+                <div className="text-[9px] text-[#666] uppercase font-bold mb-0.5">Horário de Pico</div>
+                <div className="text-sm font-bold text-[#1a5276]">{paxFlow.horaPico || '—'}</div>
+              </div>
+            </div>
+            {paxFlow.obs && (
+              <div className="text-[11px] text-[#333]">
+                <b>Observações:</b> {paxFlow.obs}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {voos && voos.length > 0 && (
+        <div className="mb-5">
+          <div className="bg-[#1a5276] text-white text-[11px] font-semibold px-3 py-1.5 uppercase tracking-widest rounded-t">6. Voos Internacionais</div>
+          <div className="border border-[#ddd] border-t-0 p-3 rounded-b">
+            <table className="w-full border-collapse text-[10px]">
+              <thead>
+                <tr className="bg-[#f5f5f5]">
+                  <th className="p-1.5 border border-[#ddd] text-left">Voo</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">Horário</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">Módulo</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">APF</th>
+                  <th className="p-1.5 border border-[#ddd] text-left">Pax</th>
+                </tr>
+              </thead>
+              <tbody>
+                {voos.map((v, i) => (
+                  <tr key={i}>
+                    <td className="p-1.5 border border-[#ddd] font-bold">{v.numero}</td>
+                    <td className="p-1.5 border border-[#ddd]">{v.horario}</td>
+                    <td className="p-1.5 border border-[#ddd]">{v.modulo}</td>
+                    <td className="p-1.5 border border-[#ddd]">{v.apf}</td>
+                    <td className="p-1.5 border border-[#ddd]">{v.pax}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 pt-3 border-t border-[#ddd] flex justify-between text-[11px] text-[#666]">
         <div>Manaus, {data}.</div>
         <div className="text-center">

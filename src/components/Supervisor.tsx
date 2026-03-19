@@ -3,7 +3,7 @@ import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
 import { cn } from '../lib/utils';
 import { Users, ClipboardList, Activity, FileText, Send, Loader2 } from 'lucide-react';
 import PdfReport from './PdfReport';
-import { Ocorrencia } from '../types';
+import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface SupervisorProps {
@@ -13,6 +13,9 @@ interface SupervisorProps {
 export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
+  const [equipamentos, setEquipamentos] = useState<EquipamentoDefeito[]>([]);
+  const [paxFlow, setPaxFlow] = useState<PaxFlow | undefined>(undefined);
+  const [voos, setVoos] = useState<VooInternacional[]>([]);
   const [presence, setPresence] = useState<Record<Canal, Record<string, boolean>>>({
     alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
   });
@@ -86,6 +89,64 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
     }
   }, []);
 
+  const buscarDadosAdicionais = useCallback(async (turnoId: string) => {
+    try {
+      // Buscar Equipamentos
+      const { data: equipData } = await supabase
+        .schema('seguranca')
+        .from('equipamentos')
+        .select('*')
+        .eq('turno_id', turnoId);
+      
+      if (equipData) {
+        setEquipamentos(equipData.map((e: any) => ({
+          tipo: e.tipo,
+          data: e.data_defeito,
+          descricao: e.descricao,
+          local: e.local,
+          os: e.os,
+          prazo: e.prazo
+        })));
+      }
+
+      // Buscar Fluxo de Passageiros
+      const { data: paxData } = await supabase
+        .schema('seguranca')
+        .from('fluxo_passageiros')
+        .select('*')
+        .eq('turno_id', turnoId)
+        .maybeSingle();
+      
+      if (paxData) {
+        setPaxFlow({
+          total: paxData.total,
+          pico: paxData.pico,
+          horaPico: paxData.hora_pico,
+          obs: paxData.obs
+        });
+      }
+
+      // Buscar Voos Internacionais
+      const { data: voosData } = await supabase
+        .schema('seguranca')
+        .from('voos_internacionais')
+        .select('*')
+        .eq('turno_id', turnoId);
+      
+      if (voosData) {
+        setVoos(voosData.map((v: any) => ({
+          numero: v.numero,
+          horario: v.horario,
+          modulo: v.modulo,
+          apf: v.apf,
+          pax: v.pax
+        })));
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dados adicionais:', err);
+    }
+  }, []);
+
   const fetchActiveTurno = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -120,7 +181,8 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
       if (turnoId) {
         await Promise.all([
           buscarEfetivo(turnoId),
-          buscarOcorrencias(turnoId)
+          buscarOcorrencias(turnoId),
+          buscarDadosAdicionais(turnoId)
         ]);
 
         // Subscribe to Realtime
@@ -155,30 +217,7 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
   }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias]);
 
   const handlePrint = () => {
-    const printContent = document.getElementById('pdf-report-content');
-    if (!printContent) return;
-    
-    const win = window.open('', '_blank');
-    if (!win) return;
-    
-    win.document.write(`
-      <html>
-        <head>
-          <title>Relatório AVSEC - Turno ${activeTurno?.letra || initialTurno}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-        </head>
-        <body class="bg-white">
-          ${printContent.innerHTML}
-          <script>
-            window.onload = () => {
-              window.print();
-              // window.close(); // Optional: close after print
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    win.document.close();
+    window.print();
   };
 
   const handleSendWebhook = async () => {
@@ -414,6 +453,9 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   recebeuDe={recebeuDe}
                   ocorrencias={ocorrencias}
                   presence={presence}
+                  equipamentos={equipamentos}
+                  paxFlow={paxFlow}
+                  voos={voos}
                 />
               </div>
             </div>

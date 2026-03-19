@@ -21,6 +21,26 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
 
+  // Estados para Equipamentos
+  const [equipamentos, setEquipamentos] = useState<any[]>([]);
+  const [novoEquipamento, setNovoEquipamento] = useState({
+    tipo: '',
+    data: new Date().toISOString().split('T')[0],
+    descricao: '',
+    local: '',
+    os: '',
+    prazo: ''
+  });
+
+  // Estados para Fluxo de Passageiros
+  const [paxFlow, setPaxFlow] = useState({
+    total: '',
+    pico: '',
+    horaPico: '',
+    obs: ''
+  });
+  const [isSavingPax, setIsSavingPax] = useState(false);
+
   const fetchActiveTurno = useCallback(async () => {
     try {
       setError(null);
@@ -122,6 +142,37 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   }, [canal]);
 
+  const fetchEquipamentos = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('equipamentos')
+        .select('*')
+        .eq('turno_id', turnoId);
+
+      if (error) throw error;
+      if (data) setEquipamentos(data);
+    } catch (err) {
+      console.error('Erro ao buscar equipamentos:', err);
+    }
+  }, []);
+
+  const fetchPaxFlow = useCallback(async (turnoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('fluxo_passageiros')
+        .select('*')
+        .eq('turno_id', turnoId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) setPaxFlow(data);
+    } catch (err) {
+      console.error('Erro ao buscar fluxo de passageiros:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -129,13 +180,15 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       if (turnoId) {
         await Promise.all([
           fetchPresence(turnoId),
-          fetchOcorrencias(turnoId)
+          fetchOcorrencias(turnoId),
+          fetchEquipamentos(turnoId),
+          fetchPaxFlow(turnoId)
         ]);
       }
       setLoading(false);
     };
     init();
-  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias]);
+  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow]);
 
   const togglePresence = async (mat: string) => {
     console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId);
@@ -194,22 +247,79 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
       if (error) throw error;
       if (inserted) {
-        // Map database fields back to UI type if necessary
-        const mapped: Ocorrencia = {
-          id: inserted.id,
-          canal: inserted.canal,
-          turnoId: inserted.turno_id,
-          tipo: inserted.tipo,
-          hora: inserted.hora,
-          desc: inserted.descricao,
-          agente: inserted.agente,
-          ts: inserted.ts
-        };
-        setOcorrencias(prev => [mapped, ...prev]);
+        setOcorrencias(prev => [inserted, ...prev]);
+        setIsModalOpen(false);
       }
     } catch (err) {
       console.error('Erro ao salvar ocorrência:', err);
       alert('Erro ao salvar ocorrência no banco de dados.');
+    }
+  };
+
+  const handleSaveEquipamento = async () => {
+    if (!activeTurnoId || !novoEquipamento.tipo || !novoEquipamento.descricao) {
+      alert('Por favor, preencha o tipo e a descrição do defeito.');
+      return;
+    }
+
+    try {
+      const { data: inserted, error } = await supabase
+        .schema('seguranca')
+        .from('equipamentos')
+        .insert({
+          turno_id: activeTurnoId,
+          tipo: novoEquipamento.tipo,
+          data_defeito: novoEquipamento.data,
+          descricao: novoEquipamento.descricao,
+          local: novoEquipamento.local,
+          os: novoEquipamento.os,
+          prazo: novoEquipamento.prazo
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (inserted) {
+        setEquipamentos(prev => [inserted, ...prev]);
+        setNovoEquipamento({
+          tipo: '',
+          data: new Date().toISOString().split('T')[0],
+          descricao: '',
+          local: '',
+          os: '',
+          prazo: ''
+        });
+        alert('Equipamento registrado com sucesso!');
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar equipamento:', err);
+      alert('Erro ao salvar equipamento no banco de dados.');
+    }
+  };
+
+  const handleSavePaxFlow = async () => {
+    if (!activeTurnoId) return;
+    setIsSavingPax(true);
+
+    try {
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('fluxo_passageiros')
+        .upsert({
+          turno_id: activeTurnoId,
+          total: paxFlow.total,
+          pico: paxFlow.pico,
+          hora_pico: paxFlow.horaPico,
+          obs: paxFlow.obs
+        }, { onConflict: 'turno_id' });
+
+      if (error) throw error;
+      alert('Fluxo de passageiros salvo com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao salvar fluxo de passageiros:', err);
+      alert('Erro ao salvar fluxo de passageiros no banco de dados.');
+    } finally {
+      setIsSavingPax(false);
     }
   };
 
@@ -388,22 +498,141 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         </div>
       )}
 
-      {/* Outras abas permanecem como protótipo por enquanto */}
+      {/* Outras abas */}
       {activeTab === 'equipamentos' && (
-        <div className="card overflow-x-auto">
-          <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
-            Registro de equipamentos com defeito
+        <div className="space-y-4">
+          <div className="card">
+            <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
+              Registrar Equipamento com Defeito
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono text-hint">Tipo/Equipamento</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={novoEquipamento.tipo}
+                  onChange={e => setNovoEquipamento({...novoEquipamento, tipo: e.target.value})}
+                  placeholder="Ex: Raio-X, Pórtico..."
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono text-hint">Local</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={novoEquipamento.local}
+                  onChange={e => setNovoEquipamento({...novoEquipamento, local: e.target.value})}
+                  placeholder="Ex: Canal Alfa"
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-[10px] uppercase font-mono text-hint">Descrição do Defeito</label>
+                <textarea 
+                  className="input-field min-h-[60px]" 
+                  value={novoEquipamento.descricao}
+                  onChange={e => setNovoEquipamento({...novoEquipamento, descricao: e.target.value})}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono text-hint">Nº Ordem de Serviço (OS)</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={novoEquipamento.os}
+                  onChange={e => setNovoEquipamento({...novoEquipamento, os: e.target.value})}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-mono text-hint">Prazo de Reparo</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={novoEquipamento.prazo}
+                  onChange={e => setNovoEquipamento({...novoEquipamento, prazo: e.target.value})}
+                />
+              </div>
+            </div>
+            <button 
+              onClick={handleSaveEquipamento}
+              className="btn-primary w-full mt-4"
+            >
+              Registrar Equipamento
+            </button>
           </div>
-          <p className="text-xs text-hint py-4">Funcionalidade em desenvolvimento.</p>
+
+          {equipamentos.length > 0 && (
+            <div className="card">
+              <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
+                Equipamentos Registrados no Turno
+              </div>
+              <div className="space-y-2">
+                {equipamentos.map((eq, i) => (
+                  <div key={i} className="p-2 border border-border-2 rounded bg-surface-2 text-xs">
+                    <div className="flex justify-between font-mono text-[10px] text-hint mb-1">
+                      <span>{eq.local}</span>
+                      <span>OS: {eq.os}</span>
+                    </div>
+                    <div className="font-medium">{eq.tipo}</div>
+                    <div className="text-muted mt-1">{eq.descricao}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'passageiros' && (
         <div className="card">
           <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
-            Fluxo de passageiros
+            Fluxo de Passageiros
           </div>
-          <p className="text-xs text-hint py-4">Funcionalidade em desenvolvimento.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono text-hint">Total de Passageiros</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={paxFlow.total}
+                onChange={e => setPaxFlow({...paxFlow, total: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono text-hint">Pico de Passageiros</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={paxFlow.pico}
+                onChange={e => setPaxFlow({...paxFlow, pico: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono text-hint">Horário do Pico</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={paxFlow.horaPico}
+                onChange={e => setPaxFlow({...paxFlow, horaPico: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1 md:col-span-3">
+              <label className="text-[10px] uppercase font-mono text-hint">Observações / Voos Internacionais</label>
+              <textarea 
+                className="input-field min-h-[100px]" 
+                value={paxFlow.obs}
+                onChange={e => setPaxFlow({...paxFlow, obs: e.target.value})}
+                placeholder="Descreva o fluxo ou liste voos internacionais..."
+              />
+            </div>
+          </div>
+          <button 
+            onClick={handleSavePaxFlow}
+            disabled={isSavingPax}
+            className="btn-primary w-full mt-4"
+          >
+            {isSavingPax ? 'Salvando...' : 'Salvar Fluxo'}
+          </button>
         </div>
       )}
 

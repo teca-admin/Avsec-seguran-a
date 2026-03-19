@@ -53,7 +53,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
       desc: finalDesc,
       agente: finalAgente,
       horaFim,
-      ts: Date.now()
+      ts: new Date().toISOString()
     });
     
     // Reset

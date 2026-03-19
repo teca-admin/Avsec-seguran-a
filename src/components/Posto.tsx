@@ -568,11 +568,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
 
       {activeTab === 'equipamentos' && (
         <div className="space-y-6">
-          <div className="card border-l-4 border-amber-500">
-            <div className="p-4 border-b border-border-2 flex items-center justify-between bg-amber-500/5">
+          <div className="card rounded-md border-border-2">
+            <div className="p-4 border-b border-border-2 flex items-center justify-between bg-surface-2">
               <div className="flex items-center gap-2">
-                <HardDrive size={16} className="text-amber-500" />
-                <span className="text-xs font-mono uppercase tracking-widest font-bold text-amber-500">
+                <HardDrive size={16} className="text-muted" />
+                <span className="text-xs font-mono uppercase tracking-widest font-bold text-text">
                   Registrar Equipamento com Defeito
                 </span>
               </div>
@@ -583,7 +583,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Tipo/Equipamento</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={novoEquipamento.tipo}
                     onChange={e => setNovoEquipamento({...novoEquipamento, tipo: e.target.value})}
                     placeholder="Ex: Raio-X, Pórtico..."
@@ -593,7 +593,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Local</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={novoEquipamento.local}
                     onChange={e => setNovoEquipamento({...novoEquipamento, local: e.target.value})}
                     placeholder="Ex: Canal Alfa"
@@ -602,7 +602,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Descrição do Defeito</label>
                   <textarea 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all min-h-[80px] resize-none" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all min-h-[80px] resize-none" 
                     value={novoEquipamento.descricao}
                     onChange={e => setNovoEquipamento({...novoEquipamento, descricao: e.target.value})}
                     placeholder="Descreva detalhadamente o problema..."
@@ -612,7 +612,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Nº Ordem de Serviço (OS)</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={novoEquipamento.os}
                     onChange={e => setNovoEquipamento({...novoEquipamento, os: e.target.value})}
                     placeholder="Ex: 12345/2024"
@@ -622,7 +622,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Prazo de Reparo</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={novoEquipamento.prazo}
                     onChange={e => setNovoEquipamento({...novoEquipamento, prazo: e.target.value})}
                     placeholder="Ex: 24 horas, Imediato..."
@@ -631,7 +631,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               </div>
               <button 
                 onClick={handleSaveEquipamento}
-                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
+                className="w-full py-2.5 bg-accent hover:opacity-90 text-black rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
               >
                 <HardDrive size={16} />
                 Enviar Registro de Equipamento
@@ -647,10 +647,10 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               </div>
               <div className="grid grid-cols-1 gap-3">
                 {equipamentos.map((eq, i) => (
-                  <div key={i} className="card p-4 border-l-4 border-amber-500/50 bg-surface-2">
+                  <div key={i} className="card rounded-md p-4 border-border-2 bg-surface-2">
                     <div className="flex justify-between items-start mb-2">
                       <div className="font-bold text-sm text-text">{eq.tipo}</div>
-                      <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                      <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-3 text-white border border-border">
                         OS: {eq.os || 'N/A'}
                       </div>
                     </div>
@@ -677,11 +677,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
 
       {activeTab === 'passageiros' && (
         <div className="space-y-6">
-          <div className="card border-l-4 border-blue-500">
-            <div className="p-4 border-b border-border-2 flex items-center justify-between bg-blue-500/5">
+          <div className="card rounded-md border-border-2">
+            <div className="p-4 border-b border-border-2 flex items-center justify-between bg-surface-2">
               <div className="flex items-center gap-2">
-                <Plane size={16} className="text-blue-500" />
-                <span className="text-xs font-mono uppercase tracking-widest font-bold text-blue-500">
+                <Plane size={16} className="text-muted" />
+                <span className="text-xs font-mono uppercase tracking-widest font-bold text-text">
                   Fluxo de Passageiros e Voos
                 </span>
               </div>
@@ -692,7 +692,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Total de Passageiros</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={paxFlow.total}
                     onChange={e => setPaxFlow({...paxFlow, total: e.target.value})}
                     placeholder="0"
@@ -702,7 +702,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Pico de Passageiros</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={paxFlow.pico}
                     onChange={e => setPaxFlow({...paxFlow, pico: e.target.value})}
                     placeholder="0"
@@ -712,7 +712,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Horário do Pico</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={paxFlow.horaPico}
                     onChange={e => setPaxFlow({...paxFlow, horaPico: e.target.value})}
                     placeholder="00:00"
@@ -721,7 +721,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <div className="space-y-1.5 md:col-span-3">
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Observações Gerais</label>
                   <textarea 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-all min-h-[80px] resize-none" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all min-h-[80px] resize-none" 
                     value={paxFlow.obs}
                     onChange={e => setPaxFlow({...paxFlow, obs: e.target.value})}
                     placeholder="Descreva o fluxo do turno ou observações relevantes..."
@@ -731,8 +731,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               
               <div className="pt-6 border-t border-border-2">
                 <div className="flex items-center gap-2 mb-4">
-                  <Plane size={16} className="text-blue-500" />
-                  <span className="text-xs font-mono uppercase tracking-widest font-bold text-blue-500">
+                  <Plane size={16} className="text-muted" />
+                  <span className="text-xs font-mono uppercase tracking-widest font-bold text-text">
                     Registro de Voos Internacionais
                   </span>
                 </div>
@@ -742,7 +742,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <label className="text-[10px] uppercase font-mono text-hint">Voo</label>
                     <input 
                       type="text" 
-                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.numero}
                       onChange={e => setNovoVoo({...novoVoo, numero: e.target.value})}
                       placeholder="Ex: AD8765"
@@ -752,7 +752,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <label className="text-[10px] uppercase font-mono text-hint">Horário</label>
                     <input 
                       type="text" 
-                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.horario}
                       onChange={e => setNovoVoo({...novoVoo, horario: e.target.value})}
                       placeholder="00:00"
@@ -762,7 +762,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <label className="text-[10px] uppercase font-mono text-hint">Módulo</label>
                     <input 
                       type="text" 
-                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.modulo}
                       onChange={e => setNovoVoo({...novoVoo, modulo: e.target.value})}
                     />
@@ -771,7 +771,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <label className="text-[10px] uppercase font-mono text-hint">APF</label>
                     <input 
                       type="text" 
-                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.apf}
                       onChange={e => setNovoVoo({...novoVoo, apf: e.target.value})}
                     />
@@ -780,7 +780,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <label className="text-[10px] uppercase font-mono text-hint">Pax</label>
                     <input 
                       type="text" 
-                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.pax}
                       onChange={e => setNovoVoo({...novoVoo, pax: e.target.value})}
                     />
@@ -791,7 +791,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   type="button"
                   onClick={handleSaveVoo}
                   disabled={isSavingVoo}
-                  className="w-full py-2 border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 text-blue-500 rounded text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all mb-6"
+                  className="w-full py-2 border border-border-2 bg-surface-2 hover:bg-surface-3 text-text rounded text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all mb-6"
                 >
                   {isSavingVoo ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
                   Registrar Voo Internacional

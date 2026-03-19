@@ -350,15 +350,15 @@ export default function PdfReport({
             <div className="grid grid-cols-3 gap-6 mb-6">
               <div className="p-3 border border-gray-200 rounded-lg text-center bg-gray-50">
                 <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Total Passageiros</div>
-                <div className="text-xl font-bold text-[#1A5276]">{paxFlow.total || '0'}</div>
+                <div className="text-xl font-bold text-black">{paxFlow.total || '0'}</div>
               </div>
               <div className="p-3 border border-gray-200 rounded-lg text-center bg-gray-50">
                 <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Pico de Fluxo</div>
-                <div className="text-xl font-bold text-[#1A5276]">{paxFlow.pico || '0'}</div>
+                <div className="text-xl font-bold text-black">{paxFlow.pico || '0'}</div>
               </div>
               <div className="p-3 border border-gray-200 rounded-lg text-center bg-gray-50">
                 <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Horário de Pico</div>
-                <div className="text-xl font-bold text-[#1A5276]">{paxFlow.horaPico || '—'}</div>
+                <div className="text-xl font-bold text-black">{paxFlow.horaPico || '—'}</div>
               </div>
             </div>
             {paxFlow.obs && (

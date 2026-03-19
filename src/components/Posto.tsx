@@ -250,9 +250,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         setOcorrencias(prev => [inserted, ...prev]);
         setIsModalOpen(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar ocorrência:', err);
-      alert('Erro ao salvar ocorrência no banco de dados.');
+      alert('Erro ao salvar ocorrência no banco de dados: ' + (err.message || 'Erro desconhecido'));
     }
   };
 
@@ -293,7 +293,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       }
     } catch (err: any) {
       console.error('Erro ao salvar equipamento:', err);
-      alert('Erro ao salvar equipamento no banco de dados.');
+      alert('Erro ao salvar equipamento no banco de dados: ' + (err.message || 'Erro desconhecido'));
     }
   };
 
@@ -317,7 +317,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       alert('Fluxo de passageiros salvo com sucesso!');
     } catch (err: any) {
       console.error('Erro ao salvar fluxo de passageiros:', err);
-      alert('Erro ao salvar fluxo de passageiros no banco de dados.');
+      alert('Erro ao salvar fluxo de passageiros no banco de dados: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setIsSavingPax(false);
     }

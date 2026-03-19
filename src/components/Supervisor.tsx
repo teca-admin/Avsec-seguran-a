@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
+import { Canal, CANAL_CONFIG, TURNOS, EFETIVO_BASE } from '../constants';
 import { cn } from '../lib/utils';
-import { Users, ClipboardList, Activity, FileText, Send, Loader2 } from 'lucide-react';
+import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane } from 'lucide-react';
 import PdfReport from './PdfReport';
 import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
 import { supabase } from '../lib/supabase';
@@ -31,7 +31,7 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
       const { data, error } = await supabase
         .schema('seguranca')
         .from('efetivo_turno')
-        .select('agente_id, presente, turnos(canal)')
+        .select('agente_id, presente')
         .eq('turno_id', turnoId);
 
       if (error) {
@@ -43,15 +43,23 @@ export default function Supervisor({ turno: initialTurno }: SupervisorProps) {
           alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
         };
         
+        // Mapear presença por ID de agente
+        const presenceMap: Record<string, boolean> = {};
         data.forEach((p: any) => {
-          // We need to know which channel the agent belongs to. 
-          // For simplicity in this MVP, we'll check all channels in EFETIVO_BASE
-          // but ideally the database schema should provide this.
-          // For now, let's just map them based on where they appear.
-          (['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).forEach(c => {
-            newPresence[c][p.agente_id] = p.presente;
+          presenceMap[p.agente_id] = p.presente;
+        });
+
+        // Distribuir nos canais usando EFETIVO_BASE como referência
+        (['alfa', 'bravo', 'charlie', 'fox', 'supervisor'] as Canal[]).forEach(c => {
+          const agents6h = EFETIVO_BASE[c]?.['6h'] || [];
+          const agents4h = EFETIVO_BASE[c]?.['4h'] || [];
+          [...agents6h, ...agents4h].forEach(agent => {
+            if (presenceMap[agent.mat] !== undefined) {
+              newPresence[c][agent.mat] = presenceMap[agent.mat];
+            }
           });
         });
+
         setPresence(newPresence);
       }
     } catch (err) {
@@ -367,6 +375,69 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             </div>
           );
         })}
+      </div>
+
+      <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
+        Equipamentos e Fluxo de Passageiros
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Equipamentos */}
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-amber-500 mb-2">
+            <HardDrive size={16} />
+            <span className="text-xs font-mono uppercase tracking-wider">Equipamentos com Defeito</span>
+          </div>
+          {equipamentos.length === 0 ? (
+            <p className="text-[11px] text-hint italic">Nenhum equipamento com defeito registrado.</p>
+          ) : (
+            <div className="space-y-2">
+              {equipamentos.map((e, i) => (
+                <div key={i} className="text-[12px] p-2 bg-surface-2 rounded border border-border-2">
+                  <div className="font-medium text-text">{e.tipo} - {e.local}</div>
+                  <div className="text-muted mt-1">{e.descricao}</div>
+                  {e.os && <div className="text-[10px] text-accent mt-1">OS: {e.os}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Fluxo de Passageiros */}
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-blue-500 mb-2">
+            <Plane size={16} />
+            <span className="text-xs font-mono uppercase tracking-wider">Fluxo de Passageiros / Voos</span>
+          </div>
+          {!paxFlow && voos.length === 0 ? (
+            <p className="text-[11px] text-hint italic">Nenhum dado de fluxo ou voos registrado.</p>
+          ) : (
+            <div className="space-y-4">
+              {paxFlow && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 bg-surface-2 rounded border border-border-2">
+                    <div className="text-[9px] text-muted uppercase">Total Pax</div>
+                    <div className="text-sm font-mono">{paxFlow.total || '0'}</div>
+                  </div>
+                  <div className="p-2 bg-surface-2 rounded border border-border-2">
+                    <div className="text-[9px] text-muted uppercase">Pico</div>
+                    <div className="text-sm font-mono">{paxFlow.pico || '0'} ({paxFlow.horaPico || '--:--'})</div>
+                  </div>
+                </div>
+              )}
+              {voos.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted uppercase font-mono">Voos Internacionais</div>
+                  {voos.map((v, i) => (
+                    <div key={i} className="text-[11px] flex justify-between p-1 border-b border-border-2 last:border-0">
+                      <span>{v.numero} ({v.horario})</span>
+                      <span className="text-muted">Pax: {v.pax}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">

@@ -411,12 +411,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             <div className="text-xl font-semibold font-mono text-white">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
             <div className="text-[11px] text-muted mt-0.5">Elijane S. Nascimento</div>
           </div>
-          <button
-            onClick={encerrarTurno}
-            className="mt-3 text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/30 transition-colors w-fit"
-          >
-            Encerrar Turno
-          </button>
         </div>
       </div>
 

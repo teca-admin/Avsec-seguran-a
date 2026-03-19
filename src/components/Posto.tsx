@@ -500,12 +500,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           <p className="text-[13px] text-white/80 italic">
             Turno {turno} – {TURNOS[turno].inicio} às {TURNOS[turno].fim} em andamento.
           </p>
-          <button
-            onClick={encerrarTurno}
-            className="text-[11px] bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded border border-red-500/30 transition-colors"
-          >
-            Encerrar Turno
-          </button>
         </div>
       </div>
 

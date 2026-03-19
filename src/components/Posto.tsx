@@ -71,8 +71,15 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           return newTurno.id;
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar/criar turno ativo:', err);
+      if (err.code === '42501') {
+        setError('Erro de Permissão (42501): O banco de dados recusou o acesso ao schema "seguranca". Verifique os GRANTS no SQL Editor.');
+      } else {
+        setError('Erro ao sincronizar turno: ' + (err.message || 'Verifique sua conexão.'));
+      }
+    } finally {
+      setLoading(false);
     }
     return null;
   }, [onTurnoChange]);

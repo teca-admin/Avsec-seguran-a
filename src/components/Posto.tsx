@@ -75,57 +75,16 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         throw error;
       }
       
-      const now = new Date();
-      const hour = now.getHours();
-      let currentShiftLetra = 'A';
-      if (hour >= 6 && hour < 12) currentShiftLetra = 'B';
-      else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
-      else if (hour >= 18) currentShiftLetra = 'D';
-
       if (data && data.length > 0) {
         const active = data[0];
-        const shiftDate = new Date(active.data);
-        const isDifferentDay = shiftDate.toISOString().split('T')[0] !== now.toISOString().split('T')[0];
-        
-        // Se for um dia diferente ou se a letra do turno for diferente da sugerida para agora,
-        // encerramos o turno antigo e iniciamos o novo.
-        if (isDifferentDay || active.letra !== currentShiftLetra) {
-          await supabase
-            .schema('seguranca')
-            .from('turnos')
-            .update({ fechado_em: now.toISOString() })
-            .eq('id', active.id);
-          
-          // Recarregar para criar o novo turno
-          return fetchActiveTurno();
-        }
-
         setActiveTurnoId(active.id);
         onTurnoChange(active.letra);
         return active.id;
       } else {
-        // Se não houver turno ativo, criar um novo para o dia de hoje
-        const { data: newTurno, error: createError } = await supabase
-          .schema('seguranca')
-          .from('turnos')
-          .insert({
-            letra: currentShiftLetra,
-            data: now.toISOString().split('T')[0],
-            aberto_em: now.toISOString(),
-            canal: 'geral'
-          })
-          .select()
-          .single();
-          
-        if (createError) throw createError;
-        if (newTurno) {
-          setActiveTurnoId(newTurno.id);
-          onTurnoChange(newTurno.letra);
-          return newTurno.id;
-        }
+        setActiveTurnoId(null);
       }
     } catch (err: any) {
-      console.error('Erro ao buscar/criar turno ativo:', err);
+      console.error('Erro ao buscar turno ativo:', err);
       if (err.code === '42501') {
         setError('Erro de Permissão (42501): O banco de dados recusou o acesso ao schema "seguranca". Verifique os GRANTS no SQL Editor.');
       } else {
@@ -136,29 +95,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
     return null;
   }, [onTurnoChange]);
-
-  const encerrarTurno = async () => {
-    if (!activeTurnoId) return;
-    
-    try {
-      setLoading(true);
-      const { error } = await supabase
-        .schema('seguranca')
-        .from('turnos')
-        .update({ fechado_em: new Date().toISOString() })
-        .eq('id', activeTurnoId);
-        
-      if (error) throw error;
-      
-      // Recarregar para criar o próximo turno
-      await fetchActiveTurno();
-    } catch (err: any) {
-      console.error('Erro ao encerrar turno:', err);
-      setError('Erro ao encerrar turno: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchPresence = useCallback(async (turnoId: string) => {
     try {
@@ -244,42 +180,65 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   }, []);
 
+  // 1. Monitorar turnos (Abertura/Fechamento pelo Supervisor)
   useEffect(() => {
-    let channel: any;
+    fetchActiveTurno();
+    
+    const turnoChannel = supabase
+      .channel('posto-turno-monitor')
+      .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'turnos' }, () => {
+        console.log('🔔 [Posto] Mudança detectada na tabela de turnos. Atualizando...');
+        fetchActiveTurno();
+      })
+      .subscribe();
 
-    const init = async () => {
-      setLoading(true);
-      const turnoId = await fetchActiveTurno();
-      if (turnoId) {
-        await Promise.all([
-          fetchPresence(turnoId),
-          fetchOcorrencias(turnoId),
-          fetchEquipamentos(turnoId),
-          fetchPaxFlow(turnoId),
-          fetchVoos(turnoId)
-        ]);
-
-        // Subscribe to Realtime - Canal Único de Alta Prioridade
-        console.log(`🚀 [Posto ${canal}] Ativando Sincronização Instantânea...`);
-        channel = supabase
-          .channel(`posto-realtime-${canal}`)
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => fetchOcorrencias(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => fetchPresence(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => fetchEquipamentos(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => fetchPaxFlow(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(turnoId))
-          .subscribe((status) => {
-            console.log(`📡 [Posto ${canal}] Status:`, status);
-          });
-      }
-      setLoading(false);
+    return () => {
+      supabase.removeChannel(turnoChannel);
     };
-    init();
+  }, [fetchActiveTurno]);
+
+  // 2. Sincronizar dados quando houver turno ativo
+  useEffect(() => {
+    if (!activeTurnoId) return;
+
+    let channel: any;
+    let pollInterval: any;
+
+    const loadData = async () => {
+      await Promise.all([
+        fetchPresence(activeTurnoId),
+        fetchOcorrencias(activeTurnoId),
+        fetchEquipamentos(activeTurnoId),
+        fetchPaxFlow(activeTurnoId),
+        fetchVoos(activeTurnoId)
+      ]);
+
+      console.log(`🚀 [Posto ${canal}] Ativando Sincronização Instantânea...`);
+      channel = supabase
+        .channel(`posto-realtime-${canal}`)
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => fetchOcorrencias(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => fetchPresence(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => fetchEquipamentos(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => fetchPaxFlow(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(activeTurnoId))
+        .subscribe((status) => {
+          console.log(`📡 [Posto ${canal}] Status:`, status);
+        });
+
+      pollInterval = setInterval(() => {
+        console.log('🔄 [Posto] Sincronização de Segurança...');
+        fetchPresence(activeTurnoId);
+        fetchOcorrencias(activeTurnoId);
+      }, 15000);
+    };
+
+    loadData();
 
     return () => {
       if (channel) supabase.removeChannel(channel);
+      if (pollInterval) clearInterval(pollInterval);
     };
-  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos, canal]);
+  }, [activeTurnoId, canal, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos]);
 
   const togglePresence = async (mat: string) => {
     console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId);
@@ -487,6 +446,21 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted">
         <Loader2 className="animate-spin" size={32} />
         <p className="font-mono text-xs uppercase tracking-widest">Sincronizando com Supabase...</p>
+      </div>
+    );
+  }
+
+  if (!activeTurnoId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-surface-2 flex items-center justify-center mb-2 animate-pulse">
+          <ClipboardList className="text-muted" size={32} />
+        </div>
+        <h3 className="text-lg font-medium text-text">Aguardando Abertura de Turno</h3>
+        <p className="text-sm text-muted max-w-xs mx-auto">
+          O Supervisor ainda não abriu o turno de hoje. 
+          Esta página será atualizada automaticamente assim que o turno for iniciado.
+        </p>
       </div>
     );
   }

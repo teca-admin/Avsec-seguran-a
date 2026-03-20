@@ -275,16 +275,25 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
               console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
             }
           });
+
+        // Fallback: Sincronização de Segurança (Polling) a cada 15s
+        const pollInterval = setInterval(() => {
+          console.log('🔄 [Supervisor] Sincronização de Segurança...');
+          buscarEfetivo(turnoId);
+          buscarOcorrencias(turnoId);
+          buscarDadosAdicionais(turnoId);
+        }, 15000);
+
+        return () => {
+          clearInterval(pollInterval);
+          if (channel) supabase.removeChannel(channel);
+        };
       }
       setLoading(false);
     };
 
     init();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias]);
+  }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais]);
 
   const handlePrint = () => {
     window.print();

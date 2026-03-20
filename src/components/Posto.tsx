@@ -260,53 +260,60 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         ]);
 
         // Subscribe to Realtime
-        console.log(`Iniciando Realtime Posto ${canal} para turno:`, turnoId);
+        console.log(`Iniciando Realtime Posto ${canal} (Sincronização Manual) para turno:`, turnoId);
         channel = supabase
           .channel(`posto-${canal}-${Math.random().toString(36).slice(2)}`)
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'ocorrencias',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Evento Ocorrência:', payload);
-            fetchOcorrencias(turnoId);
+            table: 'ocorrencias'
+          }, (payload: any) => {
+            console.log('Realtime Ocorrência:', payload);
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              fetchOcorrencias(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'efetivo_turno',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Evento Efetivo:', payload);
-            fetchPresence(turnoId);
+            table: 'efetivo_turno'
+          }, (payload: any) => {
+            console.log('Realtime Efetivo:', payload);
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              fetchPresence(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'equipamentos',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Evento Equipamento:', payload);
-            fetchEquipamentos(turnoId);
+            table: 'equipamentos'
+          }, (payload: any) => {
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              fetchEquipamentos(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'fluxo_passageiros',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Evento Fluxo:', payload);
-            fetchPaxFlow(turnoId);
+            table: 'fluxo_passageiros'
+          }, (payload: any) => {
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              fetchPaxFlow(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'voos_internacionais',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Evento Voo:', payload);
-            fetchVoos(turnoId);
+            table: 'voos_internacionais'
+          }, (payload: any) => {
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              fetchVoos(turnoId);
+            }
           })
           .subscribe((status) => {
             console.log(`Status do Canal Posto ${canal}:`, status);

@@ -261,53 +261,60 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         ]);
 
         // Subscribe to Realtime
-        console.log('Iniciando Realtime para turno:', turnoId);
+        console.log('Iniciando Realtime (Sincronização Manual) para turno:', turnoId);
         channel = supabase
-          .channel('dashboard-supervisor')
+          .channel('dashboard-supervisor-global')
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'ocorrencias',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Nova Ocorrência Realtime:', payload);
-            buscarOcorrencias(turnoId);
+            table: 'ocorrencias'
+          }, (payload: any) => {
+            console.log('Realtime Ocorrência:', payload);
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              buscarOcorrencias(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'efetivo_turno',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Mudança no Efetivo Realtime:', payload);
-            buscarEfetivo(turnoId);
+            table: 'efetivo_turno'
+          }, (payload: any) => {
+            console.log('Realtime Efetivo:', payload);
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              buscarEfetivo(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'equipamentos',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Equipamento Realtime:', payload);
-            buscarDadosAdicionais(turnoId);
+            table: 'equipamentos'
+          }, (payload: any) => {
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              buscarDadosAdicionais(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'fluxo_passageiros',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Fluxo Realtime:', payload);
-            buscarDadosAdicionais(turnoId);
+            table: 'fluxo_passageiros'
+          }, (payload: any) => {
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              buscarDadosAdicionais(turnoId);
+            }
           })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
-            table: 'voos_internacionais',
-            filter: `turno_id=eq.${turnoId}`
-          }, (payload) => {
-            console.log('Voo Realtime:', payload);
-            buscarDadosAdicionais(turnoId);
+            table: 'voos_internacionais'
+          }, (payload: any) => {
+            const item = payload.new || payload.old;
+            if (item && item.turno_id === turnoId) {
+              buscarDadosAdicionais(turnoId);
+            }
           })
           .subscribe((status) => {
             console.log('Status do Canal Supervisor:', status);

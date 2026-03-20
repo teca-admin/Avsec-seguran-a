@@ -260,29 +260,20 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           buscarDadosAdicionais(turnoId)
         ]);
 
-        // Subscribe to Realtime
-        console.log('📡 [Supervisor] Conectando Realtime Global...');
+        // Subscribe to Realtime - Canal Único de Alta Prioridade
+        console.log('🚀 [Supervisor] Ativando Sincronização Instantânea...');
         channel = supabase
-          .channel('supervisor-global-sync')
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => {
-            console.log('🔄 [Supervisor] Update: Ocorrências');
-            buscarOcorrencias(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => {
-            console.log('🔄 [Supervisor] Update: Efetivo');
-            buscarEfetivo(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => {
-            buscarDadosAdicionais(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => {
-            buscarDadosAdicionais(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => {
-            buscarDadosAdicionais(turnoId);
-          })
+          .channel('supervisor-realtime')
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
           .subscribe((status) => {
-            console.log('🌐 [Supervisor] Status do Canal:', status);
+            console.log('📡 [Supervisor] Status:', status);
+            if (status === 'CHANNEL_ERROR') {
+              console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
+            }
           });
       }
       setLoading(false);

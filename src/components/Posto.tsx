@@ -259,29 +259,17 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           fetchVoos(turnoId)
         ]);
 
-        // Subscribe to Realtime
-        console.log(`📡 [Posto ${canal}] Conectando Realtime...`);
+        // Subscribe to Realtime - Canal Único de Alta Prioridade
+        console.log(`🚀 [Posto ${canal}] Ativando Sincronização Instantânea...`);
         channel = supabase
-          .channel(`posto-sync-${canal}`)
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => {
-            console.log('🔄 [Posto] Update: Ocorrências');
-            fetchOcorrencias(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => {
-            console.log('🔄 [Posto] Update: Efetivo');
-            fetchPresence(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => {
-            fetchEquipamentos(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => {
-            fetchPaxFlow(turnoId);
-          })
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => {
-            fetchVoos(turnoId);
-          })
+          .channel(`posto-realtime-${canal}`)
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => fetchOcorrencias(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => fetchPresence(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => fetchEquipamentos(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => fetchPaxFlow(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(turnoId))
           .subscribe((status) => {
-            console.log(`🌐 [Posto ${canal}] Status do Canal:`, status);
+            console.log(`📡 [Posto ${canal}] Status:`, status);
           });
       }
       setLoading(false);

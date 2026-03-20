@@ -249,50 +249,56 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   useEffect(() => {
     let channel: any;
+    let pollInterval: any;
 
     const init = async () => {
       setLoading(true);
-      const turnoId = await fetchActiveTurno();
-      if (turnoId) {
-        await Promise.all([
-          buscarEfetivo(turnoId),
-          buscarOcorrencias(turnoId),
-          buscarDadosAdicionais(turnoId)
-        ]);
+      try {
+        const turnoId = await fetchActiveTurno();
+        if (turnoId) {
+          await Promise.all([
+            buscarEfetivo(turnoId),
+            buscarOcorrencias(turnoId),
+            buscarDadosAdicionais(turnoId)
+          ]);
 
-        // Subscribe to Realtime - Canal Único de Alta Prioridade
-        console.log('🚀 [Supervisor] Ativando Sincronização Instantânea...');
-        channel = supabase
-          .channel('supervisor-realtime')
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
-          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
-          .subscribe((status) => {
-            console.log('📡 [Supervisor] Status:', status);
-            if (status === 'CHANNEL_ERROR') {
-              console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
-            }
-          });
+          // Subscribe to Realtime - Canal Único de Alta Prioridade
+          console.log('🚀 [Supervisor] Ativando Sincronização Instantânea...');
+          channel = supabase
+            .channel('supervisor-realtime')
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
+            .subscribe((status) => {
+              console.log('📡 [Supervisor] Status:', status);
+              if (status === 'CHANNEL_ERROR') {
+                console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
+              }
+            });
 
-        // Fallback: Sincronização de Segurança (Polling) a cada 15s
-        const pollInterval = setInterval(() => {
-          console.log('🔄 [Supervisor] Sincronização de Segurança...');
-          buscarEfetivo(turnoId);
-          buscarOcorrencias(turnoId);
-          buscarDadosAdicionais(turnoId);
-        }, 15000);
-
-        return () => {
-          clearInterval(pollInterval);
-          if (channel) supabase.removeChannel(channel);
-        };
+          // Fallback: Sincronização de Segurança (Polling) a cada 15s
+          pollInterval = setInterval(() => {
+            console.log('🔄 [Supervisor] Sincronização de Segurança...');
+            buscarEfetivo(turnoId);
+            buscarOcorrencias(turnoId);
+            buscarDadosAdicionais(turnoId);
+          }, 15000);
+        }
+      } catch (err) {
+        console.error('Erro na inicialização do Supervisor:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     init();
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais]);
 
   const handlePrint = () => {

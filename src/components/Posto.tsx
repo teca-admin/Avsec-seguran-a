@@ -536,10 +536,14 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             {searchTerm && (
               <div className="absolute z-[100] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-60 overflow-y-auto">
                 {Object.values(efetivo || {}).flat()
-                  .filter(a => 
-                    (a.nome.toLowerCase().includes(searchTerm.toLowerCase()) || a.mat.toLowerCase().includes(searchTerm.toLowerCase())) &&
-                    !presence[a.mat]
-                  )
+                  .filter(a => {
+                    const term = searchTerm.toLowerCase();
+                    const nome = a.nome.toLowerCase();
+                    const mat = a.mat.toLowerCase();
+                    // User requested: "nomes que se iniciam com essa letra"
+                    return (nome.startsWith(term) || mat.startsWith(term)) && !presence[a.mat];
+                  })
+                  .sort((a, b) => a.nome.localeCompare(b.nome))
                   .map(a => (
                     <button
                       key={a.mat}
@@ -792,11 +796,10 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Horário do Pico</label>
                   <input 
-                    type="text" 
+                    type="time" 
                     className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
                     value={paxFlow.horaPico}
                     onChange={e => setPaxFlow({...paxFlow, horaPico: e.target.value})}
-                    placeholder="00:00"
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-3">
@@ -832,11 +835,10 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase font-mono text-hint">Horário</label>
                     <input 
-                      type="text" 
+                      type="time" 
                       className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.horario}
                       onChange={e => setNovoVoo({...novoVoo, horario: e.target.value})}
-                      placeholder="00:00"
                     />
                   </div>
                   <div className="space-y-1">

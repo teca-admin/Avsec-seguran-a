@@ -238,10 +238,13 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                 </div>
                 <div className="space-y-2">
                   {apacs.map((apac, i) => {
-                    const filteredAgentes = agentesCanal.filter(a => 
-                      a.nome.toLowerCase().includes((searchTerms[i] || '').toLowerCase()) ||
-                      a.mat.toLowerCase().includes((searchTerms[i] || '').toLowerCase())
-                    );
+                    const term = (searchTerms[i] || '').toLowerCase();
+                    const filteredAgentes = agentesCanal
+                      .filter(a => 
+                        a.nome.toLowerCase().startsWith(term) ||
+                        a.mat.toLowerCase().startsWith(term)
+                      )
+                      .sort((a, b) => a.nome.localeCompare(b.nome));
 
                     return (
                       <div key={i} className={cn(
@@ -369,10 +372,13 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                   {searchAgente && !agente && (
                     <div className="absolute z-[300] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-32 overflow-y-auto">
                       {agentesCanal
-                        .filter(a => 
-                          a.nome.toLowerCase().includes(searchAgente.toLowerCase()) ||
-                          a.mat.toLowerCase().includes(searchAgente.toLowerCase())
-                        )
+                        .filter(a => {
+                          const term = searchAgente.toLowerCase();
+                          const nome = a.nome.toLowerCase();
+                          const mat = a.mat.toLowerCase();
+                          return nome.startsWith(term) || mat.startsWith(term);
+                        })
+                        .sort((a, b) => a.nome.localeCompare(b.nome))
                         .map(a => (
                           <button
                             key={a.mat}

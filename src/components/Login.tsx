@@ -35,6 +35,13 @@ export default function Login({ onLogin }: LoginProps) {
     <div className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_50%_0%,rgba(238,47,36,0.06)_0%,transparent_60%)]">
       <div className="w-full max-w-[380px]">
         <div className="mb-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20 transform -rotate-6">
+              <svg viewBox="0 0 24 24" className="w-10 h-10 text-white fill-current">
+                <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
+              </svg>
+            </div>
+          </div>
           <div className="font-mono text-[20px] text-accent tracking-[0.12em] uppercase mb-1 font-bold">WFS · AVSEC</div>
         </div>
 

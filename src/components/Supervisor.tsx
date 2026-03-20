@@ -261,63 +261,28 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         ]);
 
         // Subscribe to Realtime
-        console.log('Iniciando Realtime (Sincronização Manual) para turno:', turnoId);
+        console.log('📡 [Supervisor] Conectando Realtime Global...');
         channel = supabase
-          .channel('dashboard-supervisor-global')
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'seguranca', 
-            table: 'ocorrencias'
-          }, (payload: any) => {
-            console.log('Realtime Ocorrência:', payload);
-            const item = payload.new || payload.old;
-            if (item && item.turno_id === turnoId) {
-              buscarOcorrencias(turnoId);
-            }
+          .channel('supervisor-global-sync')
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => {
+            console.log('🔄 [Supervisor] Update: Ocorrências');
+            buscarOcorrencias(turnoId);
           })
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'seguranca', 
-            table: 'efetivo_turno'
-          }, (payload: any) => {
-            console.log('Realtime Efetivo:', payload);
-            const item = payload.new || payload.old;
-            if (item && item.turno_id === turnoId) {
-              buscarEfetivo(turnoId);
-            }
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => {
+            console.log('🔄 [Supervisor] Update: Efetivo');
+            buscarEfetivo(turnoId);
           })
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'seguranca', 
-            table: 'equipamentos'
-          }, (payload: any) => {
-            const item = payload.new || payload.old;
-            if (item && item.turno_id === turnoId) {
-              buscarDadosAdicionais(turnoId);
-            }
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => {
+            buscarDadosAdicionais(turnoId);
           })
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'seguranca', 
-            table: 'fluxo_passageiros'
-          }, (payload: any) => {
-            const item = payload.new || payload.old;
-            if (item && item.turno_id === turnoId) {
-              buscarDadosAdicionais(turnoId);
-            }
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => {
+            buscarDadosAdicionais(turnoId);
           })
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'seguranca', 
-            table: 'voos_internacionais'
-          }, (payload: any) => {
-            const item = payload.new || payload.old;
-            if (item && item.turno_id === turnoId) {
-              buscarDadosAdicionais(turnoId);
-            }
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => {
+            buscarDadosAdicionais(turnoId);
           })
           .subscribe((status) => {
-            console.log('Status do Canal Supervisor:', status);
+            console.log('🌐 [Supervisor] Status do Canal:', status);
           });
       }
       setLoading(false);

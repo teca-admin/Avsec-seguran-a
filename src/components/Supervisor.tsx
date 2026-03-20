@@ -409,25 +409,25 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="card p-4">
           <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Agentes em serviço</div>
-          <div className="text-2xl font-semibold font-mono text-white">
+          <div className="text-2xl font-semibold font-mono text-text">
             {Object.values(presence).reduce((acc: number, curr: Record<string, boolean>) => acc + Object.values(curr).filter(Boolean).length, 0)}
           </div>
           <div className="text-[11px] text-muted mt-0.5">confirmados presentes</div>
         </div>
         <div className="card p-4">
           <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Ocorrências registradas</div>
-          <div className="text-2xl font-semibold font-mono text-white">{ocorrencias.length}</div>
+          <div className="text-2xl font-semibold font-mono text-text">{ocorrencias.length}</div>
           <div className="text-[11px] text-muted mt-0.5">neste turno</div>
         </div>
         <div className="card p-4">
           <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Canais ativos</div>
-          <div className="text-2xl font-semibold font-mono text-white">4</div>
+          <div className="text-2xl font-semibold font-mono text-text">4</div>
           <div className="text-[11px] text-muted mt-0.5">com efetivo confirmado</div>
         </div>
         <div className="card p-4 flex flex-col justify-between">
           <div>
             <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Turno atual</div>
-            <div className="text-xl font-semibold font-mono text-white">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
+            <div className="text-xl font-semibold font-mono text-text">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
             <div className="text-[11px] text-muted mt-0.5">Elijane S. Nascimento</div>
           </div>
         </div>
@@ -456,7 +456,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   count > 0 ? "bg-teal-500" : "bg-muted"
                 )} />
               </div>
-              <div className="text-2xl font-semibold font-mono mb-0.5">{count}</div>
+              <div className="text-2xl font-semibold font-mono mb-0.5 text-text">{count}</div>
               <div className="text-[11px] text-muted">agentes presentes</div>
               <div className="text-[11px] text-muted mt-2 pt-2 border-t border-border-2">
                 {channelOcorrencias} ocorrências
@@ -474,7 +474,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="card p-4 space-y-3">
           <div className="flex items-center gap-2 mb-2">
             <HardDrive size={16} className="text-amber-500" />
-            <span className="text-xs font-mono uppercase tracking-wider text-white">Equipamentos com Defeito</span>
+            <span className="text-xs font-mono uppercase tracking-wider text-text">Equipamentos com Defeito</span>
           </div>
           {equipamentos.length === 0 ? (
             <p className="text-[11px] text-hint italic">Nenhum equipamento com defeito registrado.</p>
@@ -495,7 +495,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="card p-4 space-y-3">
           <div className="flex items-center gap-2 mb-2">
             <Plane size={16} className="text-blue-500" />
-            <span className="text-xs font-mono uppercase tracking-wider text-white">Fluxo de Passageiros / Voos</span>
+            <span className="text-xs font-mono uppercase tracking-wider text-text">Fluxo de Passageiros / Voos</span>
           </div>
           {!paxFlow && voos.length === 0 ? (
             <p className="text-[11px] text-hint italic">Nenhum dado de fluxo ou voos registrado.</p>

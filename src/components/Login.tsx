@@ -32,15 +32,13 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_50%_0%,rgba(240,165,0,0.06)_0%,transparent_60%)]">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_50%_0%,rgba(238,47,36,0.06)_0%,transparent_60%)]">
       <div className="w-full max-w-[380px]">
         <div className="mb-8 text-center">
-          <div className="font-mono text-[13px] text-accent tracking-[0.12em] uppercase mb-1">WFS · AVSEC</div>
-          <h1 className="text-xl font-medium text-text tracking-tight">Passagem de Serviço</h1>
-          <p className="text-xs text-muted mt-0.5">Aeroporto Internacional de Manaus "Eduardo Gomes"</p>
+          <div className="font-mono text-[20px] text-accent tracking-[0.12em] uppercase mb-1 font-bold">WFS · AVSEC</div>
         </div>
 
-        <div className="card shadow-2xl shadow-black/40">
+        <div className="card shadow-2xl shadow-black/10">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Usuário (canal)</label>
@@ -75,22 +73,12 @@ export default function Login({ onLogin }: LoginProps) {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary w-full justify-center mt-2">
+            <button type="submit" className="btn btn-primary w-full justify-center mt-2 border border-[#f6f6f6]">
               Entrar
             </button>
           </form>
         </div>
 
-        <div className="mt-5 p-4 bg-surface-2 rounded border border-border-2">
-          <p className="text-[12px] text-muted font-mono mb-2">// credenciais de demonstração</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            <div className="text-[11px] text-hint font-mono"><b className="text-muted">alfa</b> → alfa123</div>
-            <div className="text-[11px] text-hint font-mono"><b className="text-muted">bravo</b> → bravo123</div>
-            <div className="text-[11px] text-hint font-mono"><b className="text-muted">charlie</b> → charlie123</div>
-            <div className="text-[11px] text-hint font-mono"><b className="text-muted">fox</b> → fox123</div>
-            <div className="text-[11px] text-hint font-mono col-span-2"><b className="text-muted">supervisor</b> → super123</div>
-          </div>
-        </div>
       </div>
     </div>
   );

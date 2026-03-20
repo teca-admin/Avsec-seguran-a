@@ -9,13 +9,15 @@ interface OcorrenciaModalProps {
   onClose: () => void;
   onSave: (data: any) => void;
   canal: Canal;
+  initialTipo?: OcorrenciaTipo;
 }
 
-export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: OcorrenciaModalProps) {
-  const [tipo, setTipo] = useState<OcorrenciaTipo>('avsec');
+export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initialTipo }: OcorrenciaModalProps) {
+  const [tipo, setTipo] = useState<OcorrenciaTipo>(initialTipo || 'avsec');
   const [hora, setHora] = useState(new Date().toTimeString().slice(0, 5));
   const [desc, setDesc] = useState('');
   const [agente, setAgente] = useState('');
+  const [searchAgente, setSearchAgente] = useState('');
   const [horaFim, setHoraFim] = useState('');
   const [imagem, setImagem] = useState<string | null>(null);
   
@@ -27,14 +29,19 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
   useEffect(() => {
     if (isOpen) {
       setHora(new Date().toTimeString().slice(0, 5));
-      // Set default type based on channel
-      if (canal === 'fox') {
-        setTipo('teca');
+      
+      if (initialTipo) {
+        setTipo(initialTipo);
       } else {
-        setTipo('passageiros');
+        // Set default type based on channel
+        if (canal === 'fox') {
+          setTipo('teca');
+        } else {
+          setTipo('passageiros');
+        }
       }
     }
-  }, [isOpen, canal]);
+  }, [isOpen, canal, initialTipo]);
 
   if (!isOpen) return null;
 
@@ -80,6 +87,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
     // Reset
     setDesc('');
     setAgente('');
+    setSearchAgente('');
     setImagem(null);
     setApacs([{ agente: '', ini: '', fim: '', detalhe: '' }]);
     setSearchTerms(['']);
@@ -108,6 +116,14 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
       return [
         { value: 'teca', label: 'Escaneamento TECA / APAC' },
         { value: 'avsec', label: 'AVSEC (segurança)' }
+      ];
+    }
+    if (canal === 'alfa' || canal === 'bravo') {
+      return [
+        { value: 'passageiros', label: 'Fluxo de passageiros' },
+        { value: 'varredura', label: 'Varredura' },
+        { value: 'avsec', label: 'AVSEC (segurança)' },
+        { value: 'receita', label: 'Atendimento Receita / PF' }
       ];
     }
     return [
@@ -311,9 +327,11 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
                 />
               </div>
 
-              {tipo === 'passageiros' && (
+              {(tipo === 'passageiros' || tipo === 'varredura') && (
                 <div>
-                  <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Foto do Fluxo</label>
+                  <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">
+                    {tipo === 'passageiros' ? 'Foto do Fluxo' : 'Foto da Varredura'}
+                  </label>
                   <input 
                     type="file" 
                     accept="image/*"
@@ -335,15 +353,41 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="relative">
                   <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Agente(s) envolvido(s)</label>
                   <input 
                     type="text" 
-                    value={agente}
-                    onChange={(e) => setAgente(e.target.value)}
-                    placeholder="Nome(s)..."
+                    value={searchAgente || agente}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchAgente(val);
+                      if (!val) setAgente('');
+                    }}
+                    placeholder="Buscar agente..."
                     className="form-input text-sm"
                   />
+                  {searchAgente && !agente && (
+                    <div className="absolute z-[300] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-32 overflow-y-auto">
+                      {agentesCanal
+                        .filter(a => 
+                          a.nome.toLowerCase().includes(searchAgente.toLowerCase()) ||
+                          a.mat.toLowerCase().includes(searchAgente.toLowerCase())
+                        )
+                        .map(a => (
+                          <button
+                            key={a.mat}
+                            onClick={() => {
+                              setAgente(a.nome);
+                              setSearchAgente(a.nome);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent/10 transition-colors border-b border-border last:border-0"
+                          >
+                            {a.nome} ({a.mat})
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário de término</label>

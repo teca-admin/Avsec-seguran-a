@@ -3,7 +3,7 @@ import { Canal, TURNOS, EFETIVO_BASE, CANAL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
 import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X } from 'lucide-react';
 import OcorrenciaModal from './OcorrenciaModal';
-import { Ocorrencia, Turno } from '../types';
+import { Ocorrencia, Turno, OcorrenciaTipo } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface PostoProps {
@@ -18,6 +18,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalInitialTipo, setModalInitialTipo] = useState<OcorrenciaTipo | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
@@ -493,7 +494,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           ))}
         </div>
         <div className="bg-white/5 border border-white/10 rounded p-3.5 flex justify-between items-center">
-          <p className="text-[13px] text-white/80 italic">
+          <p className="text-[13px] text-muted italic">
             Turno {turno} – {TURNOS[turno].inicio} às {TURNOS[turno].fim} em andamento.
           </p>
         </div>
@@ -505,6 +506,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           { id: 'ocorrencias', label: 'Ocorrências', icon: ClipboardList },
           { id: 'equipamentos', label: 'Equipamentos', icon: HardDrive },
           ...(canal !== 'fox' ? [{ id: 'passageiros', label: 'Passageiros/Voos', icon: Plane }] : []),
+          ...((canal === 'alfa' || canal === 'bravo') ? [{ id: 'varredura', label: 'Varredura', icon: Search }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -594,7 +596,10 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="space-y-4">
           <div className="flex justify-end">
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setModalInitialTipo(undefined);
+                setIsModalOpen(true);
+              }}
               className="btn btn-primary btn-sm gap-1.5"
             >
               <Plus size={14} />
@@ -707,7 +712,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               </div>
               <button 
                 onClick={handleSaveEquipamento}
-                className="w-full py-2.5 bg-accent hover:opacity-90 text-black rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
+                className="w-full py-2.5 bg-accent hover:opacity-90 text-white rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
               >
                 <HardDrive size={16} />
                 Enviar Registro de Equipamento
@@ -726,7 +731,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <div key={i} className="card rounded-md p-4 border-border-2 bg-surface-2">
                     <div className="flex justify-between items-start mb-2">
                       <div className="font-bold text-sm text-text">{eq.tipo}</div>
-                      <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-3 text-white border border-border">
+                      <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-3 text-text border border-border">
                         OS: {eq.os || 'N/A'}
                       </div>
                     </div>
@@ -899,7 +904,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <button 
                   onClick={handleSavePaxFlow}
                   disabled={isSavingPax}
-                  className="w-full py-2.5 bg-accent hover:opacity-90 text-black rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-accent hover:opacity-90 text-white rounded font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2"
                 >
                   {isSavingPax ? (
                     <Loader2 className="animate-spin" size={16} />
@@ -914,11 +919,71 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         </div>
       )}
 
+      {activeTab === 'varredura' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-[11px] font-mono text-muted uppercase tracking-widest">Registros de Varredura</h3>
+            <button 
+              onClick={() => {
+                setModalInitialTipo('varredura');
+                setIsModalOpen(true);
+              }}
+              className="btn btn-primary btn-sm gap-1.5"
+            >
+              <Plus size={14} />
+              Nova Varredura
+            </button>
+          </div>
+          
+          {ocorrencias.filter(o => o.tipo === 'varredura').length === 0 ? (
+            <div className="text-center py-8 px-5 text-hint text-[13px]">
+              <div className="text-3xl mb-2 opacity-50">🔍</div>
+              Nenhuma varredura registrada ainda.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ocorrencias.filter(o => o.tipo === 'varredura').map((o) => (
+                <div key={o.id} className="bg-surface-2 border border-border-2 rounded p-3 px-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase tracking-wider bg-accent/10 text-accent border border-accent/20">
+                      Varredura
+                    </span>
+                    <span className="font-mono text-[11px] text-muted">{o.hora}</span>
+                  </div>
+                  <div className="text-[13px] text-text whitespace-pre-wrap leading-relaxed">
+                    {o.desc}
+                  </div>
+                  {o.imagem_url && (
+                    <div className="mt-2">
+                      <img 
+                        src={o.imagem_url} 
+                        alt="Varredura" 
+                        className="rounded border border-border-2 max-h-48 w-auto object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
+                  {o.agente && (
+                    <div className="text-[11px] text-hint mt-2 font-mono">
+                      {o.agente}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <OcorrenciaModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setModalInitialTipo(undefined);
+        }} 
         onSave={handleSaveOcorrencia}
         canal={canal}
+        initialTipo={modalInitialTipo}
       />
     </div>
   );

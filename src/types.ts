@@ -15,7 +15,7 @@ export interface Turno {
   fim: string;
 }
 
-export type OcorrenciaTipo = 'teca' | 'avsec' | 'equipamento' | 'receita' | 'treinamento' | 'passageiros';
+export type OcorrenciaTipo = 'teca' | 'avsec' | 'equipamento' | 'receita' | 'treinamento' | 'passageiros' | 'varredura';
 
 export interface Ocorrencia {
   id: string;

@@ -12,23 +12,42 @@ interface OcorrenciaModalProps {
 }
 
 export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: OcorrenciaModalProps) {
-  const [tipo, setTipo] = useState<OcorrenciaTipo>('teca');
+  const [tipo, setTipo] = useState<OcorrenciaTipo>('avsec');
   const [hora, setHora] = useState(new Date().toTimeString().slice(0, 5));
   const [desc, setDesc] = useState('');
   const [agente, setAgente] = useState('');
   const [horaFim, setHoraFim] = useState('');
+  const [imagem, setImagem] = useState<string | null>(null);
   
   // TECA specific
   const [tecaTipo, setTecaTipo] = useState('Exportação raio-x SMITHS');
   const [apacs, setApacs] = useState([{ agente: '', ini: '', fim: '', detalhe: '' }]);
+  const [searchTerms, setSearchTerms] = useState<string[]>(['']);
 
   useEffect(() => {
     if (isOpen) {
       setHora(new Date().toTimeString().slice(0, 5));
+      // Set default type based on channel
+      if (canal === 'fox') {
+        setTipo('teca');
+      } else {
+        setTipo('passageiros');
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, canal]);
 
   if (!isOpen) return null;
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagem(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = () => {
     let finalDesc = desc;
@@ -53,18 +72,27 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
       desc: finalDesc,
       agente: finalAgente,
       horaFim,
-      ts: new Date().toISOString()
+      imagem_url: imagem,
+      ts: new Date().toISOString(),
+      apacs: apacs.filter(a => a.agente).map(a => `${a.agente}${a.ini ? ' (' + a.ini + '-' + a.fim + ')' : ''}`)
     });
     
     // Reset
     setDesc('');
     setAgente('');
+    setImagem(null);
     setApacs([{ agente: '', ini: '', fim: '', detalhe: '' }]);
+    setSearchTerms(['']);
     onClose();
   };
 
   const addApacRow = () => {
-    setApacs([...apacs, { agente: '', ini: '', fim: '', detalhe: '' }]);
+    let initialDetail = '';
+    if (tecaTipo === 'Exportação raio-x SMITHS') initialDetail = 'Palete: ';
+    if (tecaTipo === 'Internação raio-x') initialDetail = 'Volume: ';
+    
+    setApacs([...apacs, { agente: '', ini: '', fim: '', detalhe: initialDetail }]);
+    setSearchTerms([...searchTerms, '']);
   };
 
   const updateApac = (index: number, field: string, value: string) => {
@@ -74,6 +102,20 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
   };
 
   const agentesCanal = [...(EFETIVO_BASE[canal]?.['6h'] || []), ...(EFETIVO_BASE[canal]?.['4h'] || [])];
+
+  const getTiposDisponiveis = () => {
+    if (canal === 'fox') {
+      return [
+        { value: 'teca', label: 'Escaneamento TECA / APAC' },
+        { value: 'avsec', label: 'AVSEC (segurança)' }
+      ];
+    }
+    return [
+      { value: 'passageiros', label: 'Fluxo de passageiros' },
+      { value: 'avsec', label: 'AVSEC (segurança)' },
+      { value: 'receita', label: 'Atendimento Receita / PF' }
+    ];
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 z-[200] flex items-center justify-center p-4">
@@ -94,12 +136,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
                 onChange={(e) => setTipo(e.target.value as OcorrenciaTipo)}
                 className="form-input text-sm"
               >
-                <option value="teca">Escaneamento TECA / APAC</option>
-                <option value="avsec">AVSEC (segurança)</option>
-                <option value="equipamento">Equipamento</option>
-                <option value="receita">Atendimento Receita / PF</option>
-                <option value="treinamento">Treinamento em serviço</option>
-                <option value="passageiros">Fluxo de passageiros</option>
+                {getTiposDisponiveis().map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -119,7 +158,17 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
                 <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Tipo de operação</label>
                 <select 
                   value={tecaTipo}
-                  onChange={(e) => setTecaTipo(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTecaTipo(val);
+                    // Update existing apacs details if they are empty or just have the prefix
+                    setApacs(prev => prev.map(a => {
+                      if (val === 'Exportação raio-x SMITHS') return { ...a, detalhe: 'Palete: ' };
+                      if (val === 'Internação raio-x') return { ...a, detalhe: 'Volume: ' };
+                      if (val === 'Varredura Tango 03') return { ...a, detalhe: '' };
+                      return a;
+                    }));
+                  }}
                   className="form-input text-sm"
                 >
                   <option value="Exportação raio-x SMITHS">Exportação raio-x SMITHS</option>
@@ -127,6 +176,43 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
                   <option value="Varredura Tango 03">Varredura Tango 03</option>
                 </select>
               </div>
+
+              {tecaTipo === 'Varredura Tango 03' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Descrição da Varredura</label>
+                    <textarea 
+                      value={desc}
+                      onChange={(e) => setDesc(e.target.value)}
+                      rows={3}
+                      placeholder="Descreva a varredura..."
+                      className="form-input text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Foto da Varredura</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleImageChange}
+                      className="form-input text-xs"
+                    />
+                    {imagem && (
+                      <div className="mt-2 relative w-24 h-24 border border-border rounded overflow-hidden">
+                        <img src={imagem} alt="Preview" className="w-full h-full object-cover" />
+                        <button 
+                          onClick={() => setImagem(null)}
+                          className="absolute top-0 right-0 bg-black/50 text-white p-0.5"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="bg-surface-2 border border-border-2 rounded p-3">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-mono text-muted uppercase tracking-wider">Registros APAC</span>
@@ -135,39 +221,80 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
                   </button>
                 </div>
                 <div className="space-y-2">
-                  {apacs.map((apac, i) => (
-                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_1fr] gap-2 items-center">
-                      <select 
-                        value={apac.agente}
-                        onChange={(e) => updateApac(i, 'agente', e.target.value)}
-                        className="form-input py-1.5 px-2 text-xs"
-                      >
-                        <option value="">Agente...</option>
-                        {agentesCanal.map(a => <option key={a.mat} value={a.nome}>{a.nome}</option>)}
-                      </select>
-                      <input 
-                        type="time" 
-                        value={apac.ini}
-                        onChange={(e) => updateApac(i, 'ini', e.target.value)}
-                        className="form-input py-1.5 px-2 text-xs"
-                        placeholder="Início"
-                      />
-                      <input 
-                        type="time" 
-                        value={apac.fim}
-                        onChange={(e) => updateApac(i, 'fim', e.target.value)}
-                        className="form-input py-1.5 px-2 text-xs"
-                        placeholder="Fim"
-                      />
-                      <input 
-                        type="text" 
-                        value={apac.detalhe}
-                        onChange={(e) => updateApac(i, 'detalhe', e.target.value)}
-                        className="form-input py-1.5 px-2 text-xs"
-                        placeholder="Volume/Palete/Qtd"
-                      />
-                    </div>
-                  ))}
+                  {apacs.map((apac, i) => {
+                    const filteredAgentes = agentesCanal.filter(a => 
+                      a.nome.toLowerCase().includes((searchTerms[i] || '').toLowerCase()) ||
+                      a.mat.toLowerCase().includes((searchTerms[i] || '').toLowerCase())
+                    );
+
+                    return (
+                      <div key={i} className={cn(
+                        "grid gap-2 items-center relative",
+                        tecaTipo === 'Varredura Tango 03' ? "grid-cols-[1fr_80px_80px]" : "grid-cols-1 sm:grid-cols-[1fr_80px_80px_1fr]"
+                      )}>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={searchTerms[i] || apac.agente}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newTerms = [...searchTerms];
+                              newTerms[i] = val;
+                              setSearchTerms(newTerms);
+                              if (!val) updateApac(i, 'agente', '');
+                            }}
+                            placeholder="Buscar agente..."
+                            className="form-input py-1.5 px-2 text-xs"
+                          />
+                          {searchTerms[i] && !apac.agente && (
+                            <div className="absolute z-[300] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-32 overflow-y-auto">
+                              {filteredAgentes.length > 0 ? (
+                                filteredAgentes.map(a => (
+                                  <button
+                                    key={a.mat}
+                                    onClick={() => {
+                                      updateApac(i, 'agente', a.nome);
+                                      const newTerms = [...searchTerms];
+                                      newTerms[i] = a.nome;
+                                      setSearchTerms(newTerms);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent/10 transition-colors border-b border-border last:border-0"
+                                  >
+                                    {a.nome} ({a.mat})
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-3 py-1.5 text-[10px] text-hint">Nenhum agente encontrado</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <input 
+                          type="time" 
+                          value={apac.ini}
+                          onChange={(e) => updateApac(i, 'ini', e.target.value)}
+                          className="form-input py-1.5 px-2 text-xs"
+                          placeholder="Início"
+                        />
+                        <input 
+                          type="time" 
+                          value={apac.fim}
+                          onChange={(e) => updateApac(i, 'fim', e.target.value)}
+                          className="form-input py-1.5 px-2 text-xs"
+                          placeholder="Fim"
+                        />
+                        {tecaTipo !== 'Varredura Tango 03' && (
+                          <input 
+                            type="text" 
+                            value={apac.detalhe}
+                            onChange={(e) => updateApac(i, 'detalhe', e.target.value)}
+                            className="form-input py-1.5 px-2 text-xs"
+                            placeholder={tecaTipo === 'Internação raio-x' ? "Volume" : "Palete/Qtd"}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -183,6 +310,30 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal }: Ocor
                   className="form-input text-sm"
                 />
               </div>
+
+              {tipo === 'passageiros' && (
+                <div>
+                  <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Foto do Fluxo</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="form-input text-xs"
+                  />
+                  {imagem && (
+                    <div className="mt-2 relative w-24 h-24 border border-border rounded overflow-hidden">
+                      <img src={imagem} alt="Preview" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => setImagem(null)}
+                        className="absolute top-0 right-0 bg-black/50 text-white p-0.5"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Agente(s) envolvido(s)</label>

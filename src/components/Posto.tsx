@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Canal, TURNOS, EFETIVO_BASE, CANAL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
-import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2 } from 'lucide-react';
+import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X } from 'lucide-react';
 import OcorrenciaModal from './OcorrenciaModal';
 import { Ocorrencia, Turno } from '../types';
 import { supabase } from '../lib/supabase';
@@ -14,12 +14,15 @@ interface PostoProps {
 
 export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [activeTab, setActiveTab] = useState('efetivo');
+  const [searchTerm, setSearchTerm] = useState('');
   const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
+
+  const efetivo = EFETIVO_BASE[canal];
 
   // Estados para Equipamentos
   const [equipamentos, setEquipamentos] = useState<any[]>([]);
@@ -242,6 +245,8 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, []);
 
   useEffect(() => {
+    let channel: any;
+
     const init = async () => {
       setLoading(true);
       const turnoId = await fetchActiveTurno();
@@ -253,11 +258,50 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           fetchPaxFlow(turnoId),
           fetchVoos(turnoId)
         ]);
+
+        // Subscribe to Realtime
+        channel = supabase
+          .channel(`posto-${canal}`)
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'ocorrencias',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => fetchOcorrencias(turnoId))
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'efetivo_turno',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => fetchPresence(turnoId))
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'equipamentos',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => fetchEquipamentos(turnoId))
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'fluxo_passageiros',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => fetchPaxFlow(turnoId))
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'voos_internacionais',
+            filter: `turno_id=eq.${turnoId}`
+          }, () => fetchVoos(turnoId))
+          .subscribe();
       }
       setLoading(false);
     };
     init();
-  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos]);
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [fetchActiveTurno, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos, canal]);
 
   const togglePresence = async (mat: string) => {
     console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId);
@@ -308,7 +352,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           hora: data.hora,
           descricao: data.desc,
           agente: data.agente,
-          ts: data.ts
+          ts: data.ts,
+          imagem_url: data.imagem_url,
+          apacs: data.apacs
         })
         .select()
         .single();
@@ -433,8 +479,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   };
 
-  const efetivo = EFETIVO_BASE[canal];
-
   if (error) {
     return (
       <div className="card p-8 border-amber-500/50 bg-amber-500/5 text-center space-y-4">
@@ -508,7 +552,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           { id: 'efetivo', label: 'Efetivo', icon: Users },
           { id: 'ocorrencias', label: 'Ocorrências', icon: ClipboardList },
           { id: 'equipamentos', label: 'Equipamentos', icon: HardDrive },
-          { id: 'passageiros', label: 'Passageiros/Voos', icon: Plane },
+          ...(canal !== 'fox' ? [{ id: 'passageiros', label: 'Passageiros/Voos', icon: Plane }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -526,43 +570,71 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
 
       {activeTab === 'efetivo' && (
         <div className="space-y-4">
-          {efetivo && Object.entries(efetivo).map(([tipo, agentes]) => (
-            agentes.length > 0 && (
-              <div key={tipo} className="card">
-                <div className="text-[11px] font-mono text-accent uppercase tracking-widest mb-3 font-medium">
-                  Agentes de Proteção – {tipo} ({tipo === '6h' ? '180' : '120'} mês)
-                </div>
-                <div className="flex flex-col gap-2">
-                  {agentes.map((a) => (
-                    <div
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+            <input
+              type="text"
+              placeholder="Adicionar agente ao turno (nome ou matrícula)..."
+              className="w-full pl-10 pr-4 py-2 bg-surface-2 border border-border-2 rounded text-sm focus:outline-none focus:border-accent transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <div className="absolute z-[100] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-60 overflow-y-auto">
+                {Object.values(efetivo || {}).flat()
+                  .filter(a => 
+                    (a.nome.toLowerCase().includes(searchTerm.toLowerCase()) || a.mat.toLowerCase().includes(searchTerm.toLowerCase())) &&
+                    !presence[a.mat]
+                  )
+                  .map(a => (
+                    <button
                       key={a.mat}
-                      onClick={() => togglePresence(a.mat)}
-                      className={cn(
-                        "flex items-center gap-3 p-2.5 px-3.5 bg-surface-2 border border-border-2 rounded transition-all cursor-pointer select-none hover:border-border",
-                        presence[a.mat] && "bg-teal-500/15 border-teal-500/40"
-                      )}
+                      onClick={() => {
+                        togglePresence(a.mat);
+                        setSearchTerm('');
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-accent/10 transition-colors border-b border-border last:border-0"
                     >
-                      <div className={cn(
-                        "w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-all text-[11px]",
-                        presence[a.mat] ? "bg-teal-500 border-teal-500 text-white" : "border-border"
-                      )}>
-                        {presence[a.mat] && "✓"}
-                      </div>
-                      <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.mat}</div>
-                      <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
-                      <div className="font-mono text-[11px] text-muted">{a.turno}</div>
-                      <div className={cn(
-                        "text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0",
-                        tipo === '6h' ? "bg-teal-500/15 text-teal-400" : "bg-blue-500/15 text-blue-400"
-                      )}>
-                        {tipo}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      <div className="font-medium">{a.nome}</div>
+                      <div className="text-[10px] text-muted font-mono">{a.mat} · {a.turno}</div>
+                    </button>
+                  ))
+                }
               </div>
-            )
-          ))}
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-[11px] font-mono text-muted uppercase tracking-widest">Agentes Presentes</h3>
+            <div className="grid gap-2">
+              {Object.values(efetivo || {}).flat()
+                .filter(a => presence[a.mat])
+                .map(a => (
+                  <div
+                    key={a.mat}
+                    className="flex items-center gap-3 p-2.5 px-3.5 bg-teal-500/10 border border-teal-500/30 rounded transition-all"
+                  >
+                    <div className="w-4.5 h-4.5 rounded bg-teal-500 flex items-center justify-center text-white text-[10px]">
+                      ✓
+                    </div>
+                    <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.mat}</div>
+                    <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
+                    <button 
+                      onClick={() => togglePresence(a.mat)}
+                      className="text-muted hover:text-red-500 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))
+              }
+              {Object.values(presence).filter(Boolean).length === 0 && (
+                <div className="text-center py-8 border border-dashed border-border rounded text-hint text-xs">
+                  Nenhum agente adicionado ao turno ainda.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -596,6 +668,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <div className="text-[13px] text-text whitespace-pre-wrap leading-relaxed">
                     {o.desc}
                   </div>
+                  {o.imagem_url && (
+                    <div className="mt-2">
+                      <img 
+                        src={o.imagem_url} 
+                        alt="Evidência" 
+                        className="rounded border border-border-2 max-h-48 w-auto object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
                   {o.agente && (
                     <div className="text-[11px] text-hint mt-2 font-mono">
                       {o.agente}

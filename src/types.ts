@@ -24,6 +24,8 @@ export interface Ocorrencia {
   hora: string;
   desc: string;
   agente?: string;
+  imagem_url?: string;
+  apacs?: string[];
   ts: number;
   turnoId: string;
 }

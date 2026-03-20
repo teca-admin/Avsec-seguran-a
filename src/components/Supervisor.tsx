@@ -90,7 +90,9 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           hora: o.hora,
           desc: o.descricao,
           agente: o.agente,
-          ts: o.ts
+          ts: o.ts,
+          imagem_url: o.imagem_url,
+          apacs: o.apacs
         })));
       }
     } catch (err) {
@@ -302,7 +304,14 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
     setSending(true);
     try {
+      const now = new Date();
+      const hour = now.getHours();
+      let greeting = 'Bom dia';
+      if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+      else if (hour >= 18 || hour < 6) greeting = 'Boa noite';
+
       const payload = {
+        message: `${greeting} a todos,\n\nSegue em anexo o Relatório de Passagem de turno.`,
         turno: activeTurno?.letra || initialTurno,
         data: new Date().toLocaleDateString('pt-BR'),
         supervisor: supervisorName,
@@ -540,6 +549,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <div className="text-[13px] text-text leading-relaxed">
                     {o.desc}
                   </div>
+                  {o.imagem_url && (
+                    <div className="mt-2">
+                      <img 
+                        src={o.imagem_url} 
+                        alt="Evidência" 
+                        className="rounded border border-border-2 max-h-40 w-auto object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );

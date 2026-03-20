@@ -260,39 +260,57 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         ]);
 
         // Subscribe to Realtime
+        console.log(`Iniciando Realtime Posto ${canal} para turno:`, turnoId);
         channel = supabase
-          .channel(`posto-${canal}`)
+          .channel(`posto-${canal}-${Math.random().toString(36).slice(2)}`)
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
             table: 'ocorrencias',
             filter: `turno_id=eq.${turnoId}`
-          }, () => fetchOcorrencias(turnoId))
+          }, (payload) => {
+            console.log('Evento Ocorrência:', payload);
+            fetchOcorrencias(turnoId);
+          })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
             table: 'efetivo_turno',
             filter: `turno_id=eq.${turnoId}`
-          }, () => fetchPresence(turnoId))
+          }, (payload) => {
+            console.log('Evento Efetivo:', payload);
+            fetchPresence(turnoId);
+          })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
             table: 'equipamentos',
             filter: `turno_id=eq.${turnoId}`
-          }, () => fetchEquipamentos(turnoId))
+          }, (payload) => {
+            console.log('Evento Equipamento:', payload);
+            fetchEquipamentos(turnoId);
+          })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
             table: 'fluxo_passageiros',
             filter: `turno_id=eq.${turnoId}`
-          }, () => fetchPaxFlow(turnoId))
+          }, (payload) => {
+            console.log('Evento Fluxo:', payload);
+            fetchPaxFlow(turnoId);
+          })
           .on('postgres_changes', { 
             event: '*', 
             schema: 'seguranca', 
             table: 'voos_internacionais',
             filter: `turno_id=eq.${turnoId}`
-          }, () => fetchVoos(turnoId))
-          .subscribe();
+          }, (payload) => {
+            console.log('Evento Voo:', payload);
+            fetchVoos(turnoId);
+          })
+          .subscribe((status) => {
+            console.log(`Status do Canal Posto ${canal}:`, status);
+          });
       }
       setLoading(false);
     };

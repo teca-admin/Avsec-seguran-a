@@ -261,14 +261,16 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         ]);
 
         // Subscribe to Realtime
+        console.log('Iniciando Realtime para turno:', turnoId);
         channel = supabase
-          .channel('dashboard')
+          .channel('dashboard-supervisor')
           .on('postgres_changes', { 
-            event: 'INSERT', 
+            event: '*', 
             schema: 'seguranca', 
             table: 'ocorrencias',
             filter: `turno_id=eq.${turnoId}`
-          }, () => {
+          }, (payload) => {
+            console.log('Nova Ocorrência Realtime:', payload);
             buscarOcorrencias(turnoId);
           })
           .on('postgres_changes', { 
@@ -276,10 +278,40 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
             schema: 'seguranca', 
             table: 'efetivo_turno',
             filter: `turno_id=eq.${turnoId}`
-          }, () => {
+          }, (payload) => {
+            console.log('Mudança no Efetivo Realtime:', payload);
             buscarEfetivo(turnoId);
           })
-          .subscribe();
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'equipamentos',
+            filter: `turno_id=eq.${turnoId}`
+          }, (payload) => {
+            console.log('Equipamento Realtime:', payload);
+            buscarDadosAdicionais(turnoId);
+          })
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'fluxo_passageiros',
+            filter: `turno_id=eq.${turnoId}`
+          }, (payload) => {
+            console.log('Fluxo Realtime:', payload);
+            buscarDadosAdicionais(turnoId);
+          })
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'seguranca', 
+            table: 'voos_internacionais',
+            filter: `turno_id=eq.${turnoId}`
+          }, (payload) => {
+            console.log('Voo Realtime:', payload);
+            buscarDadosAdicionais(turnoId);
+          })
+          .subscribe((status) => {
+            console.log('Status do Canal Supervisor:', status);
+          });
       }
       setLoading(false);
     };

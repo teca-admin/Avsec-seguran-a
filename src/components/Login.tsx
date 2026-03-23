@@ -20,31 +20,7 @@ export default function Login({ onLogin }: LoginProps) {
     supervisor: 'super123',
   });
 
-  useEffect(() => {
-    const fetchPasswords = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('senhas_canais')
-          .select('*');
-        
-        if (!error && data) {
-          const newPasswords: Record<string, string> = {};
-          data.forEach((s: any) => {
-            newPasswords[s.canal] = s.senha;
-          });
-          if (Object.keys(newPasswords).length > 0) {
-            setDbPasswords(prev => ({ ...prev, ...newPasswords }));
-          }
-        }
-      } catch (err) {
-        console.error('Erro ao buscar senhas:', err);
-      }
-    };
-
-    fetchPasswords();
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       setError('Selecione um canal.');
@@ -54,15 +30,35 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
     setError('');
 
-    // Pequeno delay para feedback visual
-    setTimeout(() => {
-      if (dbPasswords[user] !== pass) {
+    try {
+      // Busca a senha apenas para o canal selecionado
+      const { data, error: fetchError } = await supabase
+        .from('senhas_canais')
+        .select('senha')
+        .eq('canal', user)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      const correctPass = data?.senha || dbPasswords[user];
+
+      if (correctPass !== pass) {
         setError('Senha incorreta.');
         setLoading(false);
         return;
       }
+
       onLogin(user as Canal);
-    }, 500);
+    } catch (err) {
+      console.error('Erro ao validar login:', err);
+      // Fallback para senhas padrão se houver erro na rede
+      if (dbPasswords[user] === pass) {
+        onLogin(user as Canal);
+      } else {
+        setError('Erro ao validar acesso. Tente novamente.');
+        setLoading(false);
+      }
+    }
   };
 
   return (

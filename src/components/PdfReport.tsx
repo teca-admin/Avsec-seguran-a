@@ -72,7 +72,7 @@ export default function PdfReport({
             top: 0 !important;
             width: 100% !important;
             margin: 0 !important;
-            padding: 15mm !important;
+            padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
             background: white !important;
@@ -91,7 +91,6 @@ export default function PdfReport({
 
           @page {
             size: A4;
-            margin: 0;
           }
         }
 

@@ -152,7 +152,20 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .order('ts', { ascending: false });
 
       if (error) throw error;
-      if (data) setOcorrencias(data);
+      if (data) {
+        setOcorrencias(data.map((o: any) => ({
+          id: o.id,
+          canal: o.canal,
+          turnoId: o.turno_id,
+          tipo: o.tipo,
+          hora: o.hora,
+          desc: o.descricao,
+          agente: o.agente,
+          ts: o.ts,
+          imagem_url: o.imagem_url,
+          apacs: o.apacs
+        })));
+      }
     } catch (err) {
       console.error('Erro ao buscar ocorrências:', err);
     }
@@ -341,7 +354,19 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
       if (error) throw error;
       if (inserted) {
-        setOcorrencias(prev => [inserted, ...prev]);
+        const mapped: Ocorrencia = {
+          id: inserted.id,
+          canal: inserted.canal,
+          turnoId: inserted.turno_id,
+          tipo: inserted.tipo,
+          hora: inserted.hora,
+          desc: inserted.descricao,
+          agente: inserted.agente,
+          ts: inserted.ts,
+          imagem_url: inserted.imagem_url,
+          apacs: inserted.apacs
+        };
+        setOcorrencias(prev => [mapped, ...prev]);
         setIsModalOpen(false);
       }
     } catch (err: any) {

@@ -5,6 +5,8 @@ import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Pla
 import PdfReport from './PdfReport';
 import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
 import { supabase } from '../lib/supabase';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
 interface SupervisorProps {
   turno: string;
@@ -31,6 +33,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const fetchAgentes = useCallback(async () => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('agentes')
         .select('*')
         .order('nome');
@@ -45,12 +48,13 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const buscarEfetivo = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('efetivo_turno')
         .select('agente_id, presente, canal, jornada')
         .eq('turno_id', turnoId);
 
       if (error) {
-        if (error.code === '42501') setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
         throw error;
       }
       if (data) {
@@ -75,13 +79,14 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const buscarOcorrencias = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('ocorrencias')
         .select('*')
         .eq('turno_id', turnoId)
         .order('ts', { ascending: false });
 
       if (error) {
-        if (error.code === '42501') setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
         throw error;
       }
       if (data) {
@@ -107,6 +112,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     try {
       // Buscar Equipamentos
       const { data: equipData } = await supabase
+        .schema('seguranca')
         .from('equipamentos')
         .select('*')
         .eq('turno_id', turnoId);
@@ -124,6 +130,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
       // Buscar Fluxo de Passageiros
       const { data: paxData } = await supabase
+        .schema('seguranca')
         .from('fluxo_passageiros')
         .select('*')
         .eq('turno_id', turnoId)
@@ -140,6 +147,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
       // Buscar Voos Internacionais
       const { data: voosData } = await supabase
+        .schema('seguranca')
         .from('voos_internacionais')
         .select('*')
         .eq('turno_id', turnoId);
@@ -161,6 +169,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const fetchActiveTurno = useCallback(async () => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('turnos')
         .select('*')
         .eq('canal', 'geral')
@@ -170,7 +179,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         .maybeSingle();
 
       if (error) {
-        if (error.code === '42501') setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
         throw error;
       }
       
@@ -185,6 +194,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         // Se a letra do turno for diferente da sugerida para agora, encerramos e criamos um novo
         if (data.letra !== currentShiftLetra) {
           await supabase
+            .schema('seguranca')
             .from('turnos')
             .update({ fechado_em: now.toISOString() })
             .eq('id', data.id);
@@ -198,6 +208,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       } else {
         // Se não houver turno ativo, criar um novo para o dia de hoje
         const { data: newTurno, error: createError } = await supabase
+          .schema('seguranca')
           .from('turnos')
           .insert({
             letra: currentShiftLetra,
@@ -227,6 +238,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     try {
       setLoading(true);
       const { error } = await supabase
+        .schema('seguranca')
         .from('turnos')
         .update({ fechado_em: new Date().toISOString() })
         .eq('id', activeTurno.id);
@@ -263,15 +275,15 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           console.log('🚀 [Supervisor] Ativando Sincronização Instantânea...');
           channel = supabase
             .channel('supervisor-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
             .subscribe((status) => {
               console.log('📡 [Supervisor] Status:', status);
               if (status === 'CHANNEL_ERROR') {
-                console.error('❌ Erro de Conexão: Verifique se as tabelas estão no schema public e se o Realtime está ativado.');
+                console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
               }
             });
 
@@ -309,8 +321,37 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       return;
     }
 
+    const element = document.getElementById('pdf-report-content');
+    if (!element) {
+      alert('Erro: Conteúdo do relatório não encontrado para gerar o PDF.');
+      return;
+    }
+
     setSending(true);
     try {
+      // Configurações do PDF idênticas ao que o usuário vê
+      const opt = {
+        margin: 0,
+        filename: `Relatorio_AVSEC_${activeTurno?.letra || 'Turno'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          letterRendering: true,
+          logging: false
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      // Gerar PDF como base64
+      const pdfBase64 = await html2pdf().from(element).set(opt).outputPdf('datauristring');
+      
+      if (!pdfBase64 || pdfBase64.length < 100) {
+        throw new Error('Falha ao gerar o conteúdo do PDF. O arquivo gerado está vazio.');
+      }
+
+      console.log('📄 PDF gerado com sucesso, tamanho:', pdfBase64.length);
+
       const now = new Date();
       const hour = now.getHours();
       let greeting = 'Bom dia';
@@ -318,13 +359,13 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       else if (hour >= 18 || hour < 6) greeting = 'Boa noite';
 
       const payload = {
-        message: `${greeting} a todos,\n\nSegue em anexo o Relatório de Passagem de turno.`,
+        message: `${greeting} a todos,\n\nSegue em anexo o Relatório de Passagem de turno oficial gerado pelo sistema.`,
         turno: activeTurno?.letra || initialTurno,
         data: new Date().toLocaleDateString('pt-BR'),
         supervisor: supervisorName,
         recebeuDe: recebeuDe,
-        ocorrencias: ocorrencias,
-        total_agentes: Object.values(presence).reduce((acc: number, curr: Record<string, boolean>) => acc + Object.values(curr).filter(Boolean).length, 0),
+        pdf_base64: pdfBase64, // O PDF REAL AQUI
+        filename: opt.filename,
         timestamp: new Date().toISOString()
       };
 
@@ -336,12 +377,12 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
       if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
       
-      alert('Relatório enviado com sucesso via Webhook!');
+      alert('Relatório PDF enviado com sucesso para o e-mail via Webhook!');
       
       // Quando clicar em enviar o relatorio o turno deve ser zerado (encerrado)
       await encerrarTurno();
     } catch (error: any) {
-      console.error('Erro ao enviar webhook:', error);
+      console.error('Erro ao gerar/enviar PDF:', error);
       alert(`Erro ao enviar relatório: ${error.message}`);
     } finally {
       setSending(false);
@@ -364,7 +405,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         <div className="pt-4 space-y-2">
           <p className="text-[10px] font-mono text-muted uppercase">Como resolver no Supabase SQL Editor:</p>
           <pre className="bg-surface-2 p-3 rounded text-[10px] text-left overflow-x-auto font-mono border border-border">
-            {`GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;`}
+            {`GRANT USAGE ON SCHEMA seguranca TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           </pre>
         </div>
         <button 

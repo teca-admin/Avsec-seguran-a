@@ -69,9 +69,6 @@ export default function PdfReport({
           }
 
           .pdf-report-container {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
@@ -91,6 +88,10 @@ export default function PdfReport({
           display: flex;
           align-items: center;
           border-bottom: 1px solid #eee;
+          /* Garante que o cabeçalho não seja tratado como repetível */
+          page-break-inside: avoid;
+          page-break-after: auto;
+          position: relative !important;
         }
         
         .report-logo {

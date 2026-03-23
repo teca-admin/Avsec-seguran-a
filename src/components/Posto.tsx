@@ -66,6 +66,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const fetchAgentes = useCallback(async () => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('agentes')
         .select('*')
         .order('nome');
@@ -82,6 +83,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       setLoading(true);
       setError(null);
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('turnos')
         .select('*')
         .eq('canal', 'geral')
@@ -91,7 +93,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
       if (error) {
         if (error.code === '42501') {
-          setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
+          setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
         }
         throw error;
       }
@@ -107,7 +109,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     } catch (err: any) {
       console.error('Erro ao buscar turno ativo:', err);
       if (err.code === '42501') {
-        setError('Erro de Permissão (42501): O banco de dados recusou o acesso ao schema public. Verifique os GRANTS no SQL Editor.');
+        setError('Erro de Permissão (42501): O banco de dados recusou o acesso ao schema "seguranca". Verifique os GRANTS no SQL Editor.');
       } else {
         setError('Erro ao sincronizar turno: ' + (err.message || 'Verifique sua conexão.'));
       }
@@ -120,6 +122,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const fetchPresence = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('efetivo_turno')
         .select('agente_id, presente, jornada')
         .eq('turno_id', turnoId)
@@ -141,6 +144,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const fetchOcorrencias = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('ocorrencias')
         .select('*')
         .eq('turno_id', turnoId)
@@ -170,6 +174,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const fetchEquipamentos = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('equipamentos')
         .select('*')
         .eq('turno_id', turnoId);
@@ -184,6 +189,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const fetchPaxFlow = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('fluxo_passageiros')
         .select('*')
         .eq('turno_id', turnoId)
@@ -199,6 +205,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const fetchVoos = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
+        .schema('seguranca')
         .from('voos_internacionais')
         .select('*')
         .eq('turno_id', turnoId);
@@ -217,7 +224,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     
     const turnoChannel = supabase
       .channel('posto-turno-monitor')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'turnos' }, () => {
         console.log('🔔 [Posto] Mudança detectada na tabela de turnos. Atualizando...');
         fetchActiveTurno();
       })
@@ -247,11 +254,11 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       console.log(`🚀 [Posto ${canal}] Ativando Sincronização Instantânea...`);
       channel = supabase
         .channel(`posto-realtime-${canal}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ocorrencias' }, () => fetchOcorrencias(activeTurnoId))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'efetivo_turno' }, () => fetchPresence(activeTurnoId))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'equipamentos' }, () => fetchEquipamentos(activeTurnoId))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'fluxo_passageiros' }, () => fetchPaxFlow(activeTurnoId))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'voos_internacionais' }, () => fetchVoos(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => fetchOcorrencias(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => fetchPresence(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => fetchEquipamentos(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => fetchPaxFlow(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(activeTurnoId))
         .subscribe((status) => {
           console.log(`📡 [Posto ${canal}] Status:`, status);
         });
@@ -297,6 +304,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
     try {
       const { error } = await supabase
+        .schema('seguranca')
         .from('efetivo_turno')
         .upsert({
           turno_id: activeTurnoId,
@@ -328,6 +336,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
     try {
       const { data: inserted, error } = await supabase
+        .schema('seguranca')
         .from('ocorrencias')
         .insert({
           turno_id: activeTurnoId,
@@ -374,6 +383,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
     try {
       const { data: inserted, error } = await supabase
+        .schema('seguranca')
         .from('equipamentos')
         .insert({
           turno_id: activeTurnoId,
@@ -412,6 +422,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
     try {
       const { error } = await supabase
+        .schema('seguranca')
         .from('fluxo_passageiros')
         .upsert({
           turno_id: activeTurnoId,
@@ -440,6 +451,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
 
     try {
       const { data: inserted, error } = await supabase
+        .schema('seguranca')
         .from('voos_internacionais')
         .insert({
           turno_id: activeTurnoId,
@@ -483,7 +495,8 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         <div className="pt-4 space-y-2">
           <p className="text-[10px] font-mono text-muted uppercase">Como resolver no Supabase SQL Editor:</p>
           <pre className="bg-surface-2 p-3 rounded text-[10px] text-left overflow-x-auto font-mono border border-border">
-            {`GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;`}
+            {`GRANT USAGE ON SCHEMA seguranca TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           </pre>
         </div>
         <button 
@@ -594,7 +607,14 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
                     const term = searchTerm.toLowerCase();
                     const nome = a.nome.toLowerCase();
                     const mat = a.matricula.toLowerCase();
-                    return (nome.includes(term) || mat.includes(term)) && !presence[a.matricula]?.presente;
+                    
+                    // Busca mais precisa: verifica se alguma palavra do nome começa com o termo
+                    // ou se a matrícula começa com o termo
+                    const nomeWords = nome.split(' ');
+                    const matchesNome = nomeWords.some(word => word.startsWith(term));
+                    const matchesMat = mat.startsWith(term);
+                    
+                    return (matchesNome || matchesMat) && !presence[a.matricula]?.presente;
                   })
                   .sort((a, b) => a.nome.localeCompare(b.nome))
                   .map(a => (

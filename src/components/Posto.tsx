@@ -764,10 +764,9 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Local</label>
                   <input 
                     type="text" 
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all" 
+                    className="w-full bg-surface-3 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none text-muted cursor-not-allowed transition-all" 
                     value={novoEquipamento.local}
-                    onChange={e => setNovoEquipamento({...novoEquipamento, local: e.target.value})}
-                    placeholder="Ex: Canal Alfa"
+                    readOnly
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">

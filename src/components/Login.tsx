@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Canal, CANAL_CONFIG } from '../constants';
+import { supabase } from '../lib/supabase';
+import { Loader2 } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: Canal) => void;
@@ -9,14 +11,39 @@ export default function Login({ onLogin }: LoginProps) {
   const [user, setUser] = useState<Canal | ''>('');
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
-
-  const CREDENTIALS: Record<string, string> = {
+  const [loading, setLoading] = useState(false);
+  const [dbPasswords, setDbPasswords] = useState<Record<string, string>>({
     alfa: 'alfa123',
     bravo: 'bravo123',
     charlie: 'charlie123',
     fox: 'fox123',
     supervisor: 'super123',
-  };
+  });
+
+  useEffect(() => {
+    const fetchPasswords = async () => {
+      try {
+        const { data, error } = await supabase
+          .schema('seguranca')
+          .from('senhas_canais')
+          .select('*');
+        
+        if (!error && data) {
+          const newPasswords: Record<string, string> = {};
+          data.forEach((s: any) => {
+            newPasswords[s.canal] = s.senha;
+          });
+          if (Object.keys(newPasswords).length > 0) {
+            setDbPasswords(prev => ({ ...prev, ...newPasswords }));
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao buscar senhas:', err);
+      }
+    };
+
+    fetchPasswords();
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,11 +51,19 @@ export default function Login({ onLogin }: LoginProps) {
       setError('Selecione um canal.');
       return;
     }
-    if (CREDENTIALS[user] !== pass) {
-      setError('Senha incorreta.');
-      return;
-    }
-    onLogin(user as Canal);
+    
+    setLoading(true);
+    setError('');
+
+    // Pequeno delay para feedback visual
+    setTimeout(() => {
+      if (dbPasswords[user] !== pass) {
+        setError('Senha incorreta.');
+        setLoading(false);
+        return;
+      }
+      onLogin(user as Canal);
+    }, 500);
   };
 
   return (
@@ -97,8 +132,12 @@ export default function Login({ onLogin }: LoginProps) {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary w-full justify-center mt-2 border border-[#f6f6f6]">
-              Entrar
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="btn btn-primary w-full justify-center mt-2 border border-[#f6f6f6] gap-2"
+            >
+              {loading ? <Loader2 className="animate-spin" size={18} /> : 'Entrar'}
             </button>
           </form>
         </div>

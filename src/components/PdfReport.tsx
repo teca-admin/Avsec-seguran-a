@@ -56,6 +56,36 @@ export default function PdfReport({
           }
         }
 
+        @media print {
+          /* Esconde tudo na página */
+          body * {
+            visibility: hidden !important;
+          }
+          /* Mostra apenas o container do relatório e seus filhos */
+          .pdf-report-container, .pdf-report-container * {
+            visibility: visible !important;
+          }
+          /* Posiciona o relatório no topo absoluto da página de impressão */
+          .pdf-report-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 10mm !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: white !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+
+          @page {
+            size: A4;
+            margin: 0;
+          }
+        }
+
         .pdf-report-container * {
           box-sizing: border-box;
         }

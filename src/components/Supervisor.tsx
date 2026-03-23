@@ -168,6 +168,21 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   const fetchActiveTurno = useCallback(async () => {
     try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .select('*')
+        .eq('canal', 'geral')
+        .is('fechado_em', null)
+        .order('data', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        throw error;
+      }
+      
       const now = new Date();
       const hour = now.getHours();
       let currentShiftLetra = 'A';
@@ -175,64 +190,41 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
       else if (hour >= 18) currentShiftLetra = 'D';
 
-      let turnoId: string | null = null;
-      let turnoData: any = null;
-
-      // Iterative approach to find/create active turno
-      let attempts = 0;
-      while (attempts < 2) {
-        const { data, error } = await supabase
-          .schema('seguranca')
-          .from('turnos')
-          .select('*')
-          .eq('canal', 'geral')
-          .is('fechado_em', null)
-          .order('data', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data) {
-          if (data.letra === currentShiftLetra) {
-            turnoData = data;
-            turnoId = data.id;
-            break;
-          } else {
-            // Close old turno
-            await supabase
-              .schema('seguranca')
-              .from('turnos')
-              .update({ fechado_em: now.toISOString() })
-              .eq('id', data.id);
-            attempts++;
-            continue; // Try again to create new turno
-          }
-        } else {
-          // Create new turno
-          const { data: newTurno, error: createError } = await supabase
+      if (data) {
+        // Se a letra do turno for diferente da sugerida para agora, encerramos e criamos um novo
+        if (data.letra !== currentShiftLetra) {
+          await supabase
             .schema('seguranca')
             .from('turnos')
-            .insert({
-              letra: currentShiftLetra,
-              data: now.toISOString().split('T')[0],
-              aberto_em: now.toISOString(),
-              canal: 'geral'
-            })
-            .select()
-            .single();
-            
-          if (createError) throw createError;
-          turnoData = newTurno;
-          turnoId = newTurno.id;
-          break;
+            .update({ fechado_em: now.toISOString() })
+            .eq('id', data.id);
+          
+          return fetchActiveTurno();
         }
-      }
 
-      if (turnoData) {
-        setActiveTurno(turnoData);
-        onTurnoChange(turnoData.letra);
-        return turnoId;
+        setActiveTurno(data);
+        onTurnoChange(data.letra);
+        return data.id;
+      } else {
+        // Se não houver turno ativo, criar um novo para o dia de hoje
+        const { data: newTurno, error: createError } = await supabase
+          .schema('seguranca')
+          .from('turnos')
+          .insert({
+            letra: currentShiftLetra,
+            data: now.toISOString().split('T')[0],
+            aberto_em: now.toISOString(),
+            canal: 'geral'
+          })
+          .select()
+          .single();
+          
+        if (createError) throw createError;
+        if (newTurno) {
+          setActiveTurno(newTurno);
+          onTurnoChange(newTurno.letra);
+          return newTurno.id;
+        }
       }
     } catch (err) {
       console.error('Erro ao buscar/criar turno ativo:', err);
@@ -270,6 +262,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     const init = async () => {
       setLoading(true);
       try {
+        await fetchAgentes();
         const turnoId = await fetchActiveTurno();
         if (turnoId) {
           await Promise.all([
@@ -408,11 +401,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const currentTurno = activeTurno?.letra || initialTurno;
   const turnoInfo = TURNOS[currentTurno];
 
-  const openPdfModal = () => {
-    fetchAgentes();
-    setIsPdfModalOpen(true);
-  };
-
   if (error) {
     return (
       <div className="card p-8 border-amber-500/50 bg-amber-500/5 text-center space-y-4">
@@ -453,7 +441,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="flex items-center justify-between">
           <h2 className="text-base font-medium text-text">Visão geral do turno</h2>
           <button 
-            onClick={openPdfModal}
+            onClick={() => setIsPdfModalOpen(true)}
             className="btn btn-primary btn-sm gap-2"
           >
             <FileText size={14} />

@@ -20,7 +20,32 @@ export default function Login({ onLogin }: LoginProps) {
     supervisor: 'super123',
   });
 
-  const handleLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchPasswords = async () => {
+      try {
+        const { data, error } = await supabase
+          .schema('seguranca')
+          .from('senhas_canais')
+          .select('*');
+        
+        if (!error && data) {
+          const newPasswords: Record<string, string> = {};
+          data.forEach((s: any) => {
+            newPasswords[s.canal] = s.senha;
+          });
+          if (Object.keys(newPasswords).length > 0) {
+            setDbPasswords(prev => ({ ...prev, ...newPasswords }));
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao buscar senhas:', err);
+      }
+    };
+
+    fetchPasswords();
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       setError('Selecione um canal.');
@@ -30,35 +55,15 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
     setError('');
 
-    try {
-      // Busca a senha apenas para o canal selecionado
-      const { data, error: fetchError } = await supabase
-        .from('senhas_canais')
-        .select('senha')
-        .eq('canal', user)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      const correctPass = data?.senha || dbPasswords[user];
-
-      if (correctPass !== pass) {
+    // Pequeno delay para feedback visual
+    setTimeout(() => {
+      if (dbPasswords[user] !== pass) {
         setError('Senha incorreta.');
         setLoading(false);
         return;
       }
-
       onLogin(user as Canal);
-    } catch (err) {
-      console.error('Erro ao validar login:', err);
-      // Fallback para senhas padrão se houver erro na rede
-      if (dbPasswords[user] === pass) {
-        onLogin(user as Canal);
-      } else {
-        setError('Erro ao validar acesso. Tente novamente.');
-        setLoading(false);
-      }
-    }
+    }, 500);
   };
 
   return (
@@ -89,7 +94,7 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           </div>
           <div className="font-mono text-[22px] text-accent tracking-[0.15em] uppercase mb-1 font-bold">WFS · AVSEC</div>
-          <div className="text-[10px] text-hint font-mono uppercase tracking-[0.3em] opacity-70">Security Management System</div>
+          <div className="text-[10px] text-hint font-mono uppercase tracking-[0.3em] opacity-70">Sistema de Gerenciamento de Segurança</div>
         </div>
 
         <div className="card shadow-2xl shadow-black/10">

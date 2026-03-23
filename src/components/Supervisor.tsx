@@ -191,17 +191,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       else if (hour >= 18) currentShiftLetra = 'D';
 
       if (data) {
-        // Se a letra do turno for diferente da sugerida para agora, encerramos e criamos um novo
-        if (data.letra !== currentShiftLetra) {
-          await supabase
-            .schema('seguranca')
-            .from('turnos')
-            .update({ fechado_em: now.toISOString() })
-            .eq('id', data.id);
-          
-          return fetchActiveTurno();
-        }
-
         setActiveTurno(data);
         onTurnoChange(data.letra);
         return data.id;

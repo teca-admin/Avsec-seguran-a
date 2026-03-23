@@ -331,14 +331,15 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     try {
       // Configurações do PDF idênticas ao que o usuário vê
       const opt = {
-        margin: 0,
+        margin: 10,
         filename: `Relatorio_AVSEC_${activeTurno?.letra || 'Turno'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
           scale: 2, 
           useCORS: true,
           letterRendering: true,
-          logging: false
+          logging: false,
+          backgroundColor: '#ffffff'
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };

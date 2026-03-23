@@ -34,53 +34,21 @@ export default function PdfReport({
           width: 100%;
           max-width: 21cm;
           margin: 0 auto;
+          padding: 1.5cm;
           /* Reset modern CSS variables that confuse html2canvas */
           --tw-shadow: 0 0 #0000;
           --tw-shadow-colored: 0 0 #0000;
           --tw-ring-offset-shadow: 0 0 #0000;
           --tw-ring-shadow: 0 0 #0000;
           --tw-ring-color: rgba(0,0,0,0);
+          /* Garante que o container flua naturalmente */
+          height: auto !important;
+          overflow: visible !important;
+          position: relative !important;
         }
 
         .pdf-report-container * {
           box-sizing: border-box;
-        }
-
-        @media screen {
-          .pdf-report-container {
-            padding: 1.5cm;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            margin: 20px auto;
-            border: 1px solid #eee;
-            min-height: 29.7cm;
-          }
-        }
-
-        @media print {
-          /* Esconde absolutamente tudo na página */
-          body * {
-            visibility: hidden !important;
-          }
-          /* Mostra apenas o container do relatório e seus filhos */
-          .pdf-report-container, .pdf-report-container * {
-            visibility: visible !important;
-          }
-          /* Posiciona o relatório no topo para a impressão */
-          .pdf-report-container {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-
-          @page {
-            size: A4;
-            margin: 15mm;
-          }
         }
 
         .report-header-band {
@@ -93,6 +61,7 @@ export default function PdfReport({
           display: flex;
           align-items: center;
           border-bottom: 1px solid #eee;
+          /* Ajuda o html2pdf a não quebrar o cabeçalho */
           page-break-inside: avoid;
         }
         

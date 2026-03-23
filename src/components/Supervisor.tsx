@@ -311,7 +311,27 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais]);
 
   const handlePrint = () => {
-    window.print();
+    const element = document.getElementById('pdf-report-content');
+    if (!element) {
+      alert('Erro: Conteúdo do relatório não encontrado.');
+      return;
+    }
+
+    const opt = {
+      margin: 10,
+      filename: `Relatorio_AVSEC_${activeTurno?.letra || 'Turno'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+      image: { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      },
+      jsPDF: { unit: 'mm', format: 'a4' as const, orientation: 'portrait' as const }
+    };
+
+    html2pdf().from(element).set(opt).save();
   };
 
   const handleSendWebhook = async () => {

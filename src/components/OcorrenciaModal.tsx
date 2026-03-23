@@ -16,7 +16,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
   const [tipo, setTipo] = useState<OcorrenciaTipo>(initialTipo || 'avsec');
   const [hora, setHora] = useState(new Date().toTimeString().slice(0, 5));
   const [desc, setDesc] = useState('');
-  const [agente, setAgente] = useState('');
+  const [agentesEnvolvidos, setAgentesEnvolvidos] = useState<string[]>([]);
   const [searchAgente, setSearchAgente] = useState('');
   const [horaFim, setHoraFim] = useState('');
   const [imagem, setImagem] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
 
   const handleSave = () => {
     let finalDesc = desc;
-    let finalAgente = agente;
+    let finalAgente = agentesEnvolvidos.join(', ');
 
     if (tipo === 'teca') {
       const apacTexts = apacs
@@ -86,7 +86,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
     
     // Reset
     setDesc('');
-    setAgente('');
+    setAgentesEnvolvidos([]);
     setSearchAgente('');
     setImagem(null);
     setApacs([{ agente: '', ini: '', fim: '', detalhe: '' }]);
@@ -355,36 +355,45 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div className="relative">
                   <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Agente(s) envolvido(s)</label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {agentesEnvolvidos.map((a, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent text-[10px] font-mono rounded border border-accent/20">
+                        {a}
+                        <button 
+                          onClick={() => setAgentesEnvolvidos(prev => prev.filter((_, i) => i !== idx))}
+                          className="hover:text-red-500"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                   <input 
                     type="text" 
-                    value={searchAgente || agente}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSearchAgente(val);
-                      if (!val) setAgente('');
-                    }}
-                    placeholder="Buscar agente..."
+                    value={searchAgente}
+                    onChange={(e) => setSearchAgente(e.target.value)}
+                    placeholder="Adicionar agente..."
                     className="form-input text-sm"
                   />
-                  {searchAgente && !agente && (
+                  {searchAgente && (
                     <div className="absolute z-[300] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-32 overflow-y-auto">
                       {agentesCanal
                         .filter(a => {
                           const term = searchAgente.toLowerCase();
                           const nome = a.nome.toLowerCase();
                           const mat = a.mat.toLowerCase();
-                          return nome.startsWith(term) || mat.startsWith(term);
+                          return (nome.startsWith(term) || mat.startsWith(term)) && !agentesEnvolvidos.includes(a.nome);
                         })
                         .sort((a, b) => a.nome.localeCompare(b.nome))
                         .map(a => (
                           <button
                             key={a.mat}
                             onClick={() => {
-                              setAgente(a.nome);
-                              setSearchAgente(a.nome);
+                              setAgentesEnvolvidos(prev => [...prev, a.nome]);
+                              setSearchAgente('');
                             }}
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent/10 transition-colors border-b border-border last:border-0"
                           >

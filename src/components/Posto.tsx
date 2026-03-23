@@ -31,10 +31,17 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     tipo: '',
     data: new Date().toISOString().split('T')[0],
     descricao: '',
-    local: '',
+    local: CANAL_CONFIG[canal]?.name || '',
     os: '',
     prazo: ''
   });
+
+  useEffect(() => {
+    setNovoEquipamento(prev => ({
+      ...prev,
+      local: CANAL_CONFIG[canal]?.name || ''
+    }));
+  }, [canal]);
 
   // Estados para Fluxo de Passageiros
   const [paxFlow, setPaxFlow] = useState({
@@ -337,7 +344,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           tipo: '',
           data: new Date().toISOString().split('T')[0],
           descricao: '',
-          local: '',
+          local: CANAL_CONFIG[canal]?.name || '',
           os: '',
           prazo: ''
         });

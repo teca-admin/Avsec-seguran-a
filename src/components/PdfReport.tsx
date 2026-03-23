@@ -34,7 +34,6 @@ export default function PdfReport({
           width: 100%;
           max-width: 21cm;
           margin: 0 auto;
-          padding: 1.5cm;
           /* Reset modern CSS variables that confuse html2canvas */
           --tw-shadow: 0 0 #0000;
           --tw-shadow-colored: 0 0 #0000;
@@ -45,6 +44,16 @@ export default function PdfReport({
           height: auto !important;
           overflow: visible !important;
           position: relative !important;
+        }
+
+        @media screen {
+          .pdf-report-container {
+            padding: 1.5cm;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            border: 1px solid #eee;
+            min-height: 29.7cm;
+          }
         }
 
         .pdf-report-container * {

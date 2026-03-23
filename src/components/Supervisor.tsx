@@ -25,7 +25,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [supervisorName, setSupervisorName] = useState("Elijane S. Nascimento");
+  const [supervisorName, setSupervisorName] = useState("");
   const [recebeuDe, setRecebeuDe] = useState("");
 
   const fetchAgentes = useCallback(async () => {
@@ -435,7 +435,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           <div>
             <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Turno atual</div>
             <div className="text-xl font-semibold font-mono text-text">{currentTurno} · {turnoInfo.inicio}–{turnoInfo.fim}</div>
-            <div className="text-[11px] text-muted mt-0.5">Elijane S. Nascimento</div>
+            <div className="text-[11px] text-muted mt-0.5">{supervisorName || "Não informado"}</div>
           </div>
         </div>
       </div>

@@ -57,24 +57,29 @@ export default function PdfReport({
         }
 
         @media print {
-          @page {
-            size: A4;
-            margin: 15mm;
+          /* Esconde absolutamente tudo na página */
+          body * {
+            visibility: hidden !important;
           }
-          
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
+          /* Mostra apenas o container do relatório e seus filhos */
+          .pdf-report-container, .pdf-report-container * {
+            visibility: visible !important;
           }
-
+          /* Posiciona o relatório no topo para a impressão */
           .pdf-report-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 100% !important;
-            max-width: none !important;
             margin: 0 !important;
             padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
+          }
+
+          @page {
+            size: A4;
+            margin: 15mm;
           }
         }
 
@@ -88,10 +93,7 @@ export default function PdfReport({
           display: flex;
           align-items: center;
           border-bottom: 1px solid #eee;
-          /* Garante que o cabeçalho não seja tratado como repetível */
           page-break-inside: avoid;
-          page-break-after: auto;
-          position: relative !important;
         }
         
         .report-logo {

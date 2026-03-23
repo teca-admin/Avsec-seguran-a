@@ -608,15 +608,34 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     const nome = a.nome.toLowerCase();
                     const mat = a.matricula.toLowerCase();
                     
-                    // Busca mais precisa: verifica se alguma palavra do nome começa com o termo
-                    // ou se a matrícula começa com o termo
                     const nomeWords = nome.split(' ');
                     const matchesNome = nomeWords.some(word => word.startsWith(term));
                     const matchesMat = mat.startsWith(term);
                     
                     return (matchesNome || matchesMat) && !presence[a.matricula]?.presente;
                   })
-                  .sort((a, b) => a.nome.localeCompare(b.nome))
+                  .sort((a, b) => {
+                    const term = searchTerm.toLowerCase();
+                    const nomeA = a.nome.toLowerCase();
+                    const nomeB = b.nome.toLowerCase();
+                    const matA = a.matricula.toLowerCase();
+                    const matB = b.matricula.toLowerCase();
+
+                    // Prioridade 1: Nome começa exatamente com o termo
+                    const startsWithA = nomeA.startsWith(term);
+                    const startsWithB = nomeB.startsWith(term);
+                    if (startsWithA && !startsWithB) return -1;
+                    if (!startsWithA && startsWithB) return 1;
+
+                    // Prioridade 2: Matrícula começa com o termo
+                    const matStartsWithA = matA.startsWith(term);
+                    const matStartsWithB = matB.startsWith(term);
+                    if (matStartsWithA && !matStartsWithB) return -1;
+                    if (!matStartsWithA && matStartsWithB) return 1;
+
+                    // Prioridade 3: Ordem alfabética normal
+                    return a.nome.localeCompare(b.nome);
+                  })
                   .map(a => (
                     <div key={a.matricula} className="border-b border-border last:border-0">
                       <div className="flex items-center justify-between px-4 py-2 hover:bg-accent/5 transition-colors">

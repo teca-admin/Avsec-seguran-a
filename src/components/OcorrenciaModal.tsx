@@ -66,7 +66,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
         .filter(a => a.agente)
         .map(a => `APAC: ${a.agente}${a.ini ? ' das ' + a.ini : ''}${a.fim ? ' às ' + a.fim : ''} – ${a.detalhe || ''}`);
       finalDesc = `${tecaTipo}\n${apacTexts.join('\n')}`;
-      finalAgente = apacTexts.length > 0 ? 'Múltiplos agentes' : '';
+      
+      const uniqueAgentes = Array.from(new Set(apacs.filter(a => a.agente).map(a => a.agente)));
+      finalAgente = uniqueAgentes.join(', ');
     }
 
     if (!finalDesc.trim() && tipo !== 'teca') {
@@ -97,8 +99,8 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
 
   const addApacRow = () => {
     let initialDetail = '';
-    if (tecaTipo === 'Exportação raio-x SMITHS') initialDetail = 'Palete: ';
-    if (tecaTipo === 'Internação raio-x') initialDetail = 'Volume: ';
+    if (tecaTipo === 'Exportação raio-x SMITHS') initialDetail = 'Paletes: ';
+    if (tecaTipo === 'Internação raio-x') initialDetail = 'Volumes: ';
     
     setApacs([...apacs, { agente: '', ini: '', fim: '', detalhe: initialDetail }]);
     setSearchTerms([...searchTerms, '']);
@@ -178,8 +180,8 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                     setTecaTipo(val);
                     // Update existing apacs details if they are empty or just have the prefix
                     setApacs(prev => prev.map(a => {
-                      if (val === 'Exportação raio-x SMITHS') return { ...a, detalhe: 'Palete: ' };
-                      if (val === 'Internação raio-x') return { ...a, detalhe: 'Volume: ' };
+                      if (val === 'Exportação raio-x SMITHS') return { ...a, detalhe: 'Paletes: ' };
+                      if (val === 'Internação raio-x') return { ...a, detalhe: 'Volumes: ' };
                       if (val === 'Varredura Tango 03') return { ...a, detalhe: '' };
                       return a;
                     }));
@@ -302,13 +304,22 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                           placeholder="Fim"
                         />
                         {tecaTipo !== 'Varredura Tango 03' && (
-                          <input 
-                            type="text" 
-                            value={apac.detalhe}
-                            onChange={(e) => updateApac(i, 'detalhe', e.target.value)}
-                            className="form-input py-1.5 px-2 text-xs"
-                            placeholder={tecaTipo === 'Internação raio-x' ? "Volume" : "Palete/Qtd"}
-                          />
+                          <div className="relative flex items-center">
+                            <span className="absolute left-2 text-[9px] font-bold text-muted uppercase pointer-events-none bg-surface-3 px-1 rounded border border-border-2">
+                              {tecaTipo === 'Internação raio-x' ? "Vol" : "Pal"}
+                            </span>
+                            <input 
+                              type="text" 
+                              value={apac.detalhe.replace(/^(Paletes: |Volumes: |Palete: |Volume: )/, '')}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const prefix = tecaTipo === 'Internação raio-x' ? "Volumes: " : "Paletes: ";
+                                updateApac(i, 'detalhe', prefix + val);
+                              }}
+                              className="form-input py-1.5 pl-10 pr-2 text-xs"
+                              placeholder="Qtd"
+                            />
+                          </div>
                         )}
                       </div>
                     );

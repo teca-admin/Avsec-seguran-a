@@ -566,6 +566,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   <div className="text-[13px] text-text leading-relaxed">
                     {o.desc}
                   </div>
+                  {o.agente && (
+                    <div className="text-[11px] text-hint mt-1 font-mono">
+                      {o.agente}
+                    </div>
+                  )}
                   {o.imagem_url && (
                     <div className="mt-2">
                       <img 

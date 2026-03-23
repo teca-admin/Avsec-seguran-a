@@ -1,5 +1,5 @@
 import React from 'react';
-import { Canal, CANAL_CONFIG, TURNOS, EFETIVO_BASE } from '../constants';
+import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
 import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
 
 interface PdfReportProps {
@@ -8,14 +8,15 @@ interface PdfReportProps {
   supervisor: string;
   recebeuDe: string;
   ocorrencias: Ocorrencia[];
-  presence: Record<Canal, Record<string, boolean>>;
+  presence: Record<Canal, Record<string, { presente: boolean, jornada?: string }>>;
+  allAgentes: any[];
   paxFlow?: PaxFlow;
   equipamentos?: EquipamentoDefeito[];
   voos?: VooInternacional[];
 }
 
 export default function PdfReport({ 
-  turno, data, supervisor, recebeuDe, ocorrencias, presence, paxFlow, equipamentos, voos 
+  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos 
 }: PdfReportProps) {
   const t = TURNOS[turno];
 
@@ -230,66 +231,37 @@ export default function PdfReport({
         <div className="section-content space-y-8">
           {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map(c => {
             const config = CANAL_CONFIG[c];
-            const data = EFETIVO_BASE[c];
-            const presentes6 = (data['6h'] || []).filter(a => presence[c]?.[a.mat]);
-            const presentes4 = (data['4h'] || []).filter(a => presence[c]?.[a.mat]);
+            const presentes = allAgentes.filter(a => presence[c]?.[a.matricula]?.presente);
             
-            if (presentes6.length === 0 && presentes4.length === 0) return null;
+            if (presentes.length === 0) return null;
 
             return (
               <div key={c} className="break-inside-avoid">
                 <div className="channel-header flex justify-between items-center">
                   <span>{config.name}</span>
-                  <span className="text-[9px] font-normal">Total: {presentes6.length + presentes4.length} agentes</span>
+                  <span className="text-[9px] font-normal">Total: {presentes.length} agentes</span>
                 </div>
                 
-                {presentes6.length > 0 && (
-                  <div className="mb-6">
-                    <div className="text-[10px] font-bold text-[#1A5276] uppercase mb-2 px-1">Agentes de Proteção – Jornada 06h</div>
-                    <table className="efetivo-table">
-                      <thead>
-                        <tr>
-                          <th className="w-24">Matrícula</th>
-                          <th>Nome Completo</th>
-                          <th className="w-32">Horário de Trabalho</th>
+                <div className="mb-6">
+                  <table className="efetivo-table">
+                    <thead>
+                      <tr>
+                        <th className="w-24">Matrícula</th>
+                        <th>Nome Completo</th>
+                        <th className="w-24">Jornada</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {presentes.map(a => (
+                        <tr key={a.matricula}>
+                          <td className="font-mono font-medium">{a.matricula}</td>
+                          <td>{a.nome}</td>
+                          <td className="font-mono text-center">{presence[c]?.[a.matricula]?.jornada || '—'}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {presentes6.map(a => (
-                          <tr key={a.mat}>
-                            <td className="font-mono font-medium">{a.mat}</td>
-                            <td>{a.nome}</td>
-                            <td>{a.turno}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {presentes4.length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold text-[#1A5276] uppercase mb-2 px-1">Agentes de Proteção – Jornada 04h</div>
-                    <table className="efetivo-table">
-                      <thead>
-                        <tr>
-                          <th className="w-24">Matrícula</th>
-                          <th>Nome Completo</th>
-                          <th className="w-32">Horário de Trabalho</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {presentes4.map(a => (
-                          <tr key={a.mat}>
-                            <td className="font-mono font-medium">{a.mat}</td>
-                            <td>{a.nome}</td>
-                            <td>{a.turno}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             );
           })}

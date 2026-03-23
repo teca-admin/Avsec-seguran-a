@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Canal, EFETIVO_BASE } from '../constants';
+import { Canal } from '../constants';
 import { OcorrenciaTipo } from '../types';
 import { cn } from '../lib/utils';
 import { X } from 'lucide-react';
@@ -9,10 +9,11 @@ interface OcorrenciaModalProps {
   onClose: () => void;
   onSave: (data: any) => void;
   canal: Canal;
+  allAgentes: any[];
   initialTipo?: OcorrenciaTipo;
 }
 
-export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initialTipo }: OcorrenciaModalProps) {
+export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAgentes, initialTipo }: OcorrenciaModalProps) {
   const [tipo, setTipo] = useState<OcorrenciaTipo>(initialTipo || 'avsec');
   const [hora, setHora] = useState(new Date().toTimeString().slice(0, 5));
   const [desc, setDesc] = useState('');
@@ -108,8 +109,6 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
     (newApacs[index] as any)[field] = value;
     setApacs(newApacs);
   };
-
-  const agentesCanal = [...(EFETIVO_BASE[canal]?.['6h'] || []), ...(EFETIVO_BASE[canal]?.['4h'] || [])];
 
   const getTiposDisponiveis = () => {
     if (canal === 'fox') {
@@ -239,10 +238,10 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                 <div className="space-y-2">
                   {apacs.map((apac, i) => {
                     const term = (searchTerms[i] || '').toLowerCase();
-                    const filteredAgentes = agentesCanal
+                    const filteredAgentes = allAgentes
                       .filter(a => 
-                        a.nome.toLowerCase().startsWith(term) ||
-                        a.mat.toLowerCase().startsWith(term)
+                        a.nome.toLowerCase().includes(term) ||
+                        a.matricula.toLowerCase().includes(term)
                       )
                       .sort((a, b) => a.nome.localeCompare(b.nome));
 
@@ -270,7 +269,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                               {filteredAgentes.length > 0 ? (
                                 filteredAgentes.map(a => (
                                   <button
-                                    key={a.mat}
+                                    key={a.matricula}
                                     onClick={() => {
                                       updateApac(i, 'agente', a.nome);
                                       const newTerms = [...searchTerms];
@@ -279,7 +278,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                                     }}
                                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent/10 transition-colors border-b border-border last:border-0"
                                   >
-                                    {a.nome} ({a.mat})
+                                    {a.nome} ({a.matricula})
                                   </button>
                                 ))
                               ) : (
@@ -380,24 +379,24 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, initia
                   />
                   {searchAgente && (
                     <div className="absolute z-[300] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-32 overflow-y-auto">
-                      {agentesCanal
+                      {allAgentes
                         .filter(a => {
                           const term = searchAgente.toLowerCase();
                           const nome = a.nome.toLowerCase();
-                          const mat = a.mat.toLowerCase();
-                          return (nome.startsWith(term) || mat.startsWith(term)) && !agentesEnvolvidos.includes(a.nome);
+                          const mat = a.matricula.toLowerCase();
+                          return (nome.includes(term) || mat.includes(term)) && !agentesEnvolvidos.includes(a.nome);
                         })
                         .sort((a, b) => a.nome.localeCompare(b.nome))
                         .map(a => (
                           <button
-                            key={a.mat}
+                            key={a.matricula}
                             onClick={() => {
                               setAgentesEnvolvidos(prev => [...prev, a.nome]);
                               setSearchAgente('');
                             }}
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent/10 transition-colors border-b border-border last:border-0"
                           >
-                            {a.nome} ({a.mat})
+                            {a.nome} ({a.matricula})
                           </button>
                         ))
                       }

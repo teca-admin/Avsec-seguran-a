@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Canal, TURNOS, EFETIVO_BASE, CANAL_CONFIG } from '../constants';
+import { Canal, TURNOS, CANAL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
 import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X } from 'lucide-react';
 import OcorrenciaModal from './OcorrenciaModal';
@@ -14,16 +14,16 @@ interface PostoProps {
 
 export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [activeTab, setActiveTab] = useState('efetivo');
+  const [allAgentes, setAllAgentes] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [presence, setPresence] = useState<Record<string, boolean>>({});
+  const [presence, setPresence] = useState<Record<string, { presente: boolean, jornada?: string }>>({});
+  const [selectedAgentForJornada, setSelectedAgentForJornada] = useState<any | null>(null);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialTipo, setModalInitialTipo] = useState<OcorrenciaTipo | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
-
-  const efetivo = EFETIVO_BASE[canal];
 
   // Estados para Equipamentos
   const [equipamentos, setEquipamentos] = useState<any[]>([]);
@@ -62,6 +62,21 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     pax: ''
   });
   const [isSavingVoo, setIsSavingVoo] = useState(false);
+
+  const fetchAgentes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('agentes')
+        .select('*')
+        .order('nome');
+      
+      if (error) throw error;
+      if (data) setAllAgentes(data);
+    } catch (err) {
+      console.error('Erro ao buscar agentes:', err);
+    }
+  }, []);
 
   const fetchActiveTurno = useCallback(async () => {
     try {
@@ -109,14 +124,15 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       const { data, error } = await supabase
         .schema('seguranca')
         .from('efetivo_turno')
-        .select('agente_id, presente')
-        .eq('turno_id', turnoId);
+        .select('agente_id, presente, jornada')
+        .eq('turno_id', turnoId)
+        .eq('canal', canal);
 
       if (error) throw error;
       if (data) {
-        const presenceMap: Record<string, boolean> = {};
+        const presenceMap: Record<string, { presente: boolean, jornada?: string }> = {};
         data.forEach((p: any) => {
-          presenceMap[p.agente_id] = p.presente;
+          presenceMap[p.agente_id] = { presente: p.presente, jornada: p.jornada };
         });
         setPresence(presenceMap);
       }
@@ -191,6 +207,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   // 1. Monitorar turnos (Abertura/Fechamento pelo Supervisor)
   useEffect(() => {
     fetchActiveTurno();
+    fetchAgentes();
     
     const turnoChannel = supabase
       .channel('posto-turno-monitor')
@@ -248,16 +265,29 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     };
   }, [activeTurnoId, canal, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos]);
 
-  const togglePresence = async (mat: string) => {
-    console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId);
+  const filteredAgentes = useMemo(() => {
+    if (!searchTerm) return allAgentes;
+    return allAgentes.filter(a => 
+      a.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.matricula.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [allAgentes, searchTerm]);
+
+  const togglePresence = async (mat: string, jornadaValue?: string) => {
+    console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId, 'Jornada:', jornadaValue);
     if (!activeTurnoId) {
       alert('Nenhum turno ativo encontrado. Por favor, recarregue a página ou aguarde a sincronização.');
       return;
     }
     
-    const newState = !presence[mat];
+    const isCurrentlyPresent = presence[mat]?.presente;
+    const newState = !isCurrentlyPresent;
+    
     console.log('New presence state:', newState);
-    setPresence(prev => ({ ...prev, [mat]: newState }));
+    setPresence(prev => ({ 
+      ...prev, 
+      [mat]: { presente: newState, jornada: jornadaValue || prev[mat]?.jornada } 
+    }));
 
     try {
       const { error } = await supabase
@@ -267,6 +297,8 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           turno_id: activeTurnoId,
           agente_id: mat,
           presente: newState,
+          jornada: jornadaValue || (isCurrentlyPresent ? presence[mat]?.jornada : undefined),
+          canal: canal,
           registrado_em: new Date().toISOString()
         }, { onConflict: 'turno_id,agente_id' });
 
@@ -279,7 +311,10 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       console.error('Erro ao atualizar presença:', err);
       alert('Erro ao salvar presença no banco de dados: ' + (err.message || 'Erro desconhecido'));
       // Rollback UI state on error
-      setPresence(prev => ({ ...prev, [mat]: !newState }));
+      setPresence(prev => ({ 
+        ...prev, 
+        [mat]: { presente: !newState, jornada: isCurrentlyPresent ? presence[mat]?.jornada : undefined } 
+      }));
     }
   };
 
@@ -542,27 +577,43 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             />
             {searchTerm && (
               <div className="absolute z-[100] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-60 overflow-y-auto">
-                {Object.values(efetivo || {}).flat()
+                {allAgentes
                   .filter(a => {
                     const term = searchTerm.toLowerCase();
                     const nome = a.nome.toLowerCase();
-                    const mat = a.mat.toLowerCase();
-                    // User requested: "nomes que se iniciam com essa letra"
-                    return (nome.startsWith(term) || mat.startsWith(term)) && !presence[a.mat];
+                    const mat = a.matricula.toLowerCase();
+                    return (nome.includes(term) || mat.includes(term)) && !presence[a.matricula]?.presente;
                   })
                   .sort((a, b) => a.nome.localeCompare(b.nome))
                   .map(a => (
-                    <button
-                      key={a.mat}
-                      onClick={() => {
-                        togglePresence(a.mat);
-                        setSearchTerm('');
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-accent/10 transition-colors border-b border-border last:border-0"
-                    >
-                      <div className="font-medium">{a.nome}</div>
-                      <div className="text-[10px] text-muted font-mono">{a.mat} · {a.turno}</div>
-                    </button>
+                    <div key={a.matricula} className="border-b border-border last:border-0">
+                      <div className="flex items-center justify-between px-4 py-2 hover:bg-accent/5 transition-colors">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">{a.nome}</div>
+                          <div className="text-[10px] text-muted font-mono">{a.matricula}</div>
+                        </div>
+                        <div className="flex gap-1.5 shrink-0 ml-4">
+                          <button
+                            onClick={() => {
+                              togglePresence(a.matricula, '04:00');
+                              setSearchTerm('');
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold bg-surface-3 border border-border rounded hover:bg-accent hover:text-white transition-all"
+                          >
+                            04:00
+                          </button>
+                          <button
+                            onClick={() => {
+                              togglePresence(a.matricula, '06:00');
+                              setSearchTerm('');
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold bg-surface-3 border border-border rounded hover:bg-accent hover:text-white transition-all"
+                          >
+                            06:00
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))
                 }
               </div>
@@ -572,20 +623,23 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           <div className="space-y-3">
             <h3 className="text-[11px] font-mono text-muted uppercase tracking-widest">Agentes Presentes</h3>
             <div className="grid gap-2">
-              {Object.values(efetivo || {}).flat()
-                .filter(a => presence[a.mat])
+              {allAgentes
+                .filter(a => presence[a.matricula]?.presente)
                 .map(a => (
                   <div
-                    key={a.mat}
+                    key={a.matricula}
                     className="flex items-center gap-3 p-2.5 px-3.5 bg-teal-500/10 border border-teal-500/30 rounded transition-all"
                   >
                     <div className="w-4.5 h-4.5 rounded bg-teal-500 flex items-center justify-center text-white text-[10px]">
                       ✓
                     </div>
-                    <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.mat}</div>
+                    <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.matricula}</div>
                     <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
+                    <div className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-600 border border-teal-500/20">
+                      {presence[a.matricula]?.jornada || '—'}
+                    </div>
                     <button 
-                      onClick={() => togglePresence(a.mat)}
+                      onClick={() => togglePresence(a.matricula)}
                       className="text-muted hover:text-red-500 transition-colors"
                     >
                       <X size={14} />
@@ -593,7 +647,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   </div>
                 ))
               }
-              {Object.values(presence).filter(Boolean).length === 0 && (
+              {Object.values(presence).filter((p: any) => p.presente).length === 0 && (
                 <div className="text-center py-8 border border-dashed border-border rounded text-hint text-xs">
                   Nenhum agente adicionado ao turno ainda.
                 </div>
@@ -992,6 +1046,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         }} 
         onSave={handleSaveOcorrencia}
         canal={canal}
+        allAgentes={allAgentes}
         initialTipo={modalInitialTipo}
       />
     </div>

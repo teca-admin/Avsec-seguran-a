@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Canal, CANAL_CONFIG, TURNOS, EFETIVO_BASE } from '../constants';
+import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
 import { cn } from '../lib/utils';
 import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane } from 'lucide-react';
 import PdfReport from './PdfReport';
@@ -17,7 +17,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [equipamentos, setEquipamentos] = useState<EquipamentoDefeito[]>([]);
   const [paxFlow, setPaxFlow] = useState<PaxFlow | undefined>(undefined);
   const [voos, setVoos] = useState<VooInternacional[]>([]);
-  const [presence, setPresence] = useState<Record<Canal, Record<string, boolean>>>({
+  const [allAgentes, setAllAgentes] = useState<any[]>([]);
+  const [presence, setPresence] = useState<Record<Canal, Record<string, { presente: boolean, jornada?: string }>>>({
     alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
   });
   const [activeTurno, setActiveTurno] = useState<any>(null);
@@ -27,12 +28,27 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [supervisorName, setSupervisorName] = useState("Elijane S. Nascimento");
   const [recebeuDe, setRecebeuDe] = useState("");
 
+  const fetchAgentes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('agentes')
+        .select('*')
+        .order('nome');
+      
+      if (error) throw error;
+      if (data) setAllAgentes(data);
+    } catch (err) {
+      console.error('Erro ao buscar agentes:', err);
+    }
+  }, []);
+
   const buscarEfetivo = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
         .schema('seguranca')
         .from('efetivo_turno')
-        .select('agente_id, presente')
+        .select('agente_id, presente, canal, jornada')
         .eq('turno_id', turnoId);
 
       if (error) {
@@ -40,25 +56,15 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         throw error;
       }
       if (data) {
-        const newPresence: Record<Canal, Record<string, boolean>> = {
+        const newPresence: Record<Canal, Record<string, { presente: boolean, jornada?: string }>> = {
           alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
         };
         
-        // Mapear presença por ID de agente
-        const presenceMap: Record<string, boolean> = {};
         data.forEach((p: any) => {
-          presenceMap[p.agente_id] = p.presente;
-        });
-
-        // Distribuir nos canais usando EFETIVO_BASE como referência
-        (['alfa', 'bravo', 'charlie', 'fox', 'supervisor'] as Canal[]).forEach(c => {
-          const agents6h = EFETIVO_BASE[c]?.['6h'] || [];
-          const agents4h = EFETIVO_BASE[c]?.['4h'] || [];
-          [...agents6h, ...agents4h].forEach(agent => {
-            if (presenceMap[agent.mat] !== undefined) {
-              newPresence[c][agent.mat] = presenceMap[agent.mat];
-            }
-          });
+          const c = p.canal as Canal;
+          if (newPresence[c]) {
+            newPresence[c][p.agente_id] = { presente: p.presente, jornada: p.jornada };
+          }
         });
 
         setPresence(newPresence);
@@ -254,6 +260,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     const init = async () => {
       setLoading(true);
       try {
+        await fetchAgentes();
         const turnoId = await fetchActiveTurno();
         if (turnoId) {
           await Promise.all([
@@ -623,6 +630,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   recebeuDe={recebeuDe}
                   ocorrencias={ocorrencias}
                   presence={presence}
+                  allAgentes={allAgentes}
                   equipamentos={equipamentos}
                   paxFlow={paxFlow}
                   voos={voos}

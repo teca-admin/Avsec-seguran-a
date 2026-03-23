@@ -82,30 +82,46 @@ export default function PdfReport({
         }
 
         .report-header-band {
-          background-color: #ee2f24 !important;
-          color: white !important;
-          padding: 25px 20px;
+          background-color: #fff !important;
+          color: #000 !important;
+          padding: 10px 0 25px 0;
           text-align: center;
           width: 100%;
           margin-bottom: 30px;
+          display: flex;
+          align-items: center;
+          border-bottom: 1px solid #eee;
+        }
+        
+        .report-logo {
+          height: 120px;
+          width: auto;
+          margin-right: 20px;
+        }
+
+        .report-header-text {
+          flex: 1;
+          text-align: center;
         }
         
         .report-header-band h1 {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: bold;
           margin: 0;
-          letter-spacing: 1px;
+          color: #000 !important;
+          text-transform: uppercase;
         }
 
         .header-info-line {
-          font-size: 12px;
-          margin-top: 15px;
-          padding-top: 12px;
-          border-top: 1px solid rgba(255,255,255,0.2);
+          font-size: 11px;
+          margin-top: 10px;
+          padding-top: 8px;
+          border-top: 1px solid #eee;
           font-weight: 500;
           display: flex;
           justify-content: center;
-          gap: 24px;
+          gap: 20px;
+          color: #000 !important;
         }
 
         .section-container {
@@ -276,14 +292,23 @@ export default function PdfReport({
 
       {/* Header Band */}
       <div className="report-header-band">
-        <h1>PASSAGEM DE SERVIÇO DOS POSTOS DE PROTEÇÃO</h1>
-        <div style={{ fontSize: '16px', marginTop: '4px', fontWeight: '600', opacity: 0.9 }}>Aeroporto Internacional de Manaus "Eduardo Gomes"</div>
-        <div className="header-info-line">
-          <span><b>DATA:</b> {data}</span>
-          <span style={{ opacity: 0.3 }}>|</span>
-          <span><b>TURNO:</b> {t.letra} ({t.inicio} – {t.fim})</span>
-          <span style={{ opacity: 0.3 }}>|</span>
-          <span><b>SUPERVISOR:</b> {supervisor}</span>
+        <img 
+          src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g" 
+          alt="Logo" 
+          className="report-logo"
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+        />
+        <div className="report-header-text">
+          <h1>PASSAGEM DE SERVIÇO DOS POSTOS DE PROTEÇÃO</h1>
+          <div style={{ fontSize: '15px', marginTop: '4px', fontWeight: '600', color: '#000' }}>Aeroporto Internacional de Manaus "Eduardo Gomes"</div>
+          <div className="header-info-line">
+            <span><b>DATA:</b> {data}</span>
+            <span style={{ opacity: 0.3 }}>|</span>
+            <span><b>TURNO:</b> {t.letra} ({t.inicio} – {t.fim})</span>
+            <span style={{ opacity: 0.3 }}>|</span>
+            <span><b>SUPERVISOR:</b> {supervisor}</span>
+          </div>
         </div>
       </div>
 

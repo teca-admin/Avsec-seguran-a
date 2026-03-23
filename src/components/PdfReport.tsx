@@ -113,7 +113,7 @@ export default function PdfReport({
         }
 
         .report-header-band {
-          background-color: #1A5276 !important;
+          background-color: #ee2f24 !important;
           -webkit-print-color-adjust: exact;
           color: white !important;
           padding: 25px 20px;
@@ -123,7 +123,7 @@ export default function PdfReport({
         }
         
         .section-title {
-          background-color: #1A5276 !important;
+          background-color: #ee2f24 !important;
           -webkit-print-color-adjust: exact;
           color: white !important;
           font-size: 11px;
@@ -135,17 +135,17 @@ export default function PdfReport({
         }
 
         .section-content {
-          border: 1px solid #1A5276;
+          border: 1px solid #ee2f24;
           padding: 15px;
           background-color: #FFFFFF;
           margin-bottom: 20px;
         }
 
         .channel-header {
-          background-color: #EBF5FB !important;
+          background-color: #fef2f2 !important;
           -webkit-print-color-adjust: exact;
-          border-left: 5px solid #1A5276;
-          color: #1A5276;
+          border-left: 5px solid #ee2f24;
+          color: #ee2f24;
           font-weight: bold;
           padding: 8px 12px;
           margin-bottom: 10px;
@@ -183,7 +183,7 @@ export default function PdfReport({
         }
 
         .footer-line {
-          border-top: 2px solid #1A5276;
+          border-top: 2px solid #ee2f24;
           margin-top: 50px;
           padding-top: 15px;
           display: flex;
@@ -274,12 +274,22 @@ export default function PdfReport({
           <div className="section-title">3. Registro de Ocorrências</div>
           <div className="section-content space-y-5">
             {ocorrencias.map((o, i) => (
-              <div key={i} className="p-4 border border-gray-200 border-l-4 border-[#1A5276] bg-white rounded-r break-inside-avoid shadow-sm">
+              <div key={i} className="p-4 border border-gray-200 border-l-4 border-[#ee2f24] bg-white rounded-r break-inside-avoid shadow-sm">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10px] font-bold uppercase px-3 py-1 rounded bg-[#EBF5FB] text-[#1A5276]">{o.tipo}</span>
+                  <span className="text-[10px] font-bold uppercase px-3 py-1 rounded bg-[#fef2f2] text-[#ee2f24]">{o.tipo}</span>
                   <span className="text-[11px] text-gray-600 font-bold">{o.hora}</span>
                 </div>
                 <div className="text-[12px] text-gray-800 whitespace-pre-wrap leading-relaxed">{o.desc}</div>
+                {o.imagem_url && (
+                  <div className="mt-4 rounded-lg overflow-hidden border border-gray-100 max-w-md">
+                    <img 
+                      src={o.imagem_url} 
+                      alt="Evidência da ocorrência" 
+                      className="w-full h-auto object-contain max-h-[300px]"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
                 {o.agente && (
                   <div className="text-[10px] text-gray-500 mt-3 pt-3 border-t border-gray-100 italic">
                     <b>Envolvido(s):</b> {o.agente}
@@ -309,7 +319,7 @@ export default function PdfReport({
               <tbody>
                 {equipamentos.map((e, i) => (
                   <tr key={i}>
-                    <td className="font-bold text-[#1A5276]">{e.tipo}</td>
+                    <td className="font-bold text-[#ee2f24]">{e.tipo}</td>
                     <td>{e.local}</td>
                     <td className="text-[11px] leading-snug">{e.descricao}</td>
                     <td className="font-mono text-[11px]">{e.os || '—'}</td>
@@ -343,7 +353,7 @@ export default function PdfReport({
             </div>
             {paxFlow.obs && (
               <div className="text-[12px] text-gray-700 p-4 bg-white border border-gray-200 rounded-lg">
-                <b className="text-[#1A5276] uppercase text-[10px] block mb-2 border-b border-gray-100 pb-1">Observações Adicionais:</b>
+                <b className="text-[#ee2f24] uppercase text-[10px] block mb-2 border-b border-gray-100 pb-1">Observações Adicionais:</b>
                 <div className="whitespace-pre-wrap">{paxFlow.obs}</div>
               </div>
             )}
@@ -369,7 +379,7 @@ export default function PdfReport({
               <tbody>
                 {voos.map((v, i) => (
                   <tr key={i}>
-                    <td className="font-bold text-[#1A5276]">{v.numero}</td>
+                    <td className="font-bold text-[#ee2f24]">{v.numero}</td>
                     <td>{v.horario}</td>
                     <td>{v.modulo}</td>
                     <td>{v.apf}</td>
@@ -390,7 +400,7 @@ export default function PdfReport({
         </div>
         <div className="signature-block">
           <div className="signature-line"></div>
-          <div className="text-[13px] font-bold text-[#1A5276] uppercase">{supervisor}</div>
+          <div className="text-[13px] font-bold text-[#ee2f24] uppercase">{supervisor}</div>
           <div className="text-[11px] text-gray-600 font-semibold">Supervisor AVSEC · WFS</div>
         </div>
       </div>

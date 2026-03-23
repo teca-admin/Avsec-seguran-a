@@ -24,7 +24,6 @@ export default function Login({ onLogin }: LoginProps) {
     const fetchPasswords = async () => {
       try {
         const { data, error } = await supabase
-          .schema('seguranca')
           .from('senhas_canais')
           .select('*');
         

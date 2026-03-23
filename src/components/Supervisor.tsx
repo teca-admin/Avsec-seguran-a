@@ -31,7 +31,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const fetchAgentes = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .schema('seguranca')
         .from('agentes')
         .select('*')
         .order('nome');
@@ -46,13 +45,12 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const buscarEfetivo = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
-        .schema('seguranca')
         .from('efetivo_turno')
         .select('agente_id, presente, canal, jornada')
         .eq('turno_id', turnoId);
 
       if (error) {
-        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        if (error.code === '42501') setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
         throw error;
       }
       if (data) {
@@ -77,14 +75,13 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const buscarOcorrencias = useCallback(async (turnoId: string) => {
     try {
       const { data, error } = await supabase
-        .schema('seguranca')
         .from('ocorrencias')
         .select('*')
         .eq('turno_id', turnoId)
         .order('ts', { ascending: false });
 
       if (error) {
-        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        if (error.code === '42501') setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
         throw error;
       }
       if (data) {
@@ -110,7 +107,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     try {
       // Buscar Equipamentos
       const { data: equipData } = await supabase
-        .schema('seguranca')
         .from('equipamentos')
         .select('*')
         .eq('turno_id', turnoId);
@@ -128,7 +124,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
       // Buscar Fluxo de Passageiros
       const { data: paxData } = await supabase
-        .schema('seguranca')
         .from('fluxo_passageiros')
         .select('*')
         .eq('turno_id', turnoId)
@@ -145,7 +140,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
       // Buscar Voos Internacionais
       const { data: voosData } = await supabase
-        .schema('seguranca')
         .from('voos_internacionais')
         .select('*')
         .eq('turno_id', turnoId);
@@ -167,7 +161,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const fetchActiveTurno = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .schema('seguranca')
         .from('turnos')
         .select('*')
         .eq('canal', 'geral')
@@ -177,7 +170,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         .maybeSingle();
 
       if (error) {
-        if (error.code === '42501') setError('Erro de Permissão: O schema "seguranca" não está exposto na API do Supabase ou as permissões de GRANT estão faltando.');
+        if (error.code === '42501') setError('Erro de Permissão: Verifique as permissões de GRANT no Supabase para as tabelas no schema public.');
         throw error;
       }
       
@@ -192,7 +185,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         // Se a letra do turno for diferente da sugerida para agora, encerramos e criamos um novo
         if (data.letra !== currentShiftLetra) {
           await supabase
-            .schema('seguranca')
             .from('turnos')
             .update({ fechado_em: now.toISOString() })
             .eq('id', data.id);
@@ -206,7 +198,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       } else {
         // Se não houver turno ativo, criar um novo para o dia de hoje
         const { data: newTurno, error: createError } = await supabase
-          .schema('seguranca')
           .from('turnos')
           .insert({
             letra: currentShiftLetra,
@@ -236,7 +227,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     try {
       setLoading(true);
       const { error } = await supabase
-        .schema('seguranca')
         .from('turnos')
         .update({ fechado_em: new Date().toISOString() })
         .eq('id', activeTurno.id);
@@ -273,15 +263,15 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           console.log('🚀 [Supervisor] Ativando Sincronização Instantânea...');
           channel = supabase
             .channel('supervisor-realtime')
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
             .subscribe((status) => {
               console.log('📡 [Supervisor] Status:', status);
               if (status === 'CHANNEL_ERROR') {
-                console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
+                console.error('❌ Erro de Conexão: Verifique se as tabelas estão no schema public e se o Realtime está ativado.');
               }
             });
 
@@ -374,8 +364,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         <div className="pt-4 space-y-2">
           <p className="text-[10px] font-mono text-muted uppercase">Como resolver no Supabase SQL Editor:</p>
           <pre className="bg-surface-2 p-3 rounded text-[10px] text-left overflow-x-auto font-mono border border-border">
-            {`GRANT USAGE ON SCHEMA seguranca TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
+            {`GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;`}
           </pre>
         </div>
         <button 

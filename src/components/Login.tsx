@@ -24,6 +24,7 @@ export default function Login({ onLogin }: LoginProps) {
     const fetchPasswords = async () => {
       try {
         const { data, error } = await supabase
+          .schema('seguranca')
           .from('senhas_canais')
           .select('*');
         
@@ -93,7 +94,7 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           </div>
           <div className="font-mono text-[22px] text-accent tracking-[0.15em] uppercase mb-1 font-bold">WFS · AVSEC</div>
-          <div className="text-[10px] text-hint font-mono uppercase tracking-[0.3em] opacity-70">Security Management System</div>
+          <div className="text-[10px] text-hint font-mono uppercase tracking-[0.3em] opacity-70">Sistema de Gerenciamento de Segurança</div>
         </div>
 
         <div className="card shadow-2xl shadow-black/10">

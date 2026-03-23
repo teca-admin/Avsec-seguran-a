@@ -22,31 +22,22 @@ export default function Layout({ children, user, onLogout, turno }: LayoutProps)
 
   const config = CANAL_CONFIG[user];
   const turnoInfo = TURNOS[turno];
-  const generatedLogo = localStorage.getItem('avsec_logo');
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="h-[52px] bg-surface border-b border-border px-5 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-black rounded-lg border border-border overflow-hidden shadow-sm">
-            <img 
-              src={generatedLogo || "/logo.png"} 
-              alt="Logo" 
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/airport-security-3d/100/100';
-              }}
-              referrerPolicy="no-referrer"
-            />
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 bg-accent rounded flex items-center justify-center shrink-0">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 text-white fill-current">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+            </svg>
           </div>
-          <div className="flex items-center gap-2.5">
-            <span className="font-mono text-[11px] text-accent tracking-widest font-bold">AVSEC</span>
-            <span className="text-border text-lg leading-none">·</span>
-            <span className="text-[13px] font-medium text-text">{config.name}</span>
-            <span className={cn("text-[10px] font-mono font-medium px-2 py-0.5 rounded uppercase tracking-wider", config.badge)}>
-              {config.label}
-            </span>
-          </div>
+          <span className="font-mono text-[11px] text-accent tracking-widest">AVSEC</span>
+          <span className="text-border text-lg leading-none">·</span>
+          <span className="text-[13px] font-medium text-text">{config.name}</span>
+          <span className={cn("text-[10px] font-mono font-medium px-2 py-0.5 rounded uppercase tracking-wider", config.badge)}>
+            {config.label}
+          </span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-muted font-mono text-xs">

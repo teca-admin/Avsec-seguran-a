@@ -29,6 +29,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [sending, setSending] = useState(false);
   const [supervisorName, setSupervisorName] = useState("");
   const [recebeuDe, setRecebeuDe] = useState("");
+  const [editingOcorrencia, setEditingOcorrencia] = useState<Ocorrencia | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchAgentes = useCallback(async () => {
     try {
@@ -96,11 +98,16 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           turnoId: o.turno_id,
           tipo: o.tipo,
           hora: o.hora,
+          hora_inicio: o.hora_inicio,
+          hora_fim: o.hora_fim,
           desc: o.descricao,
           agente: o.agente,
           ts: o.ts,
           imagem_url: o.imagem_url,
-          apacs: o.apacs
+          apacs: o.apacs,
+          passageiro_nome: o.passageiro_nome,
+          passageiro_cpf: o.passageiro_cpf,
+          voo: o.voo
         })));
       }
     } catch (err) {
@@ -141,7 +148,10 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           total: paxData.total,
           pico: paxData.pico,
           horaPico: paxData.hora_pico,
-          obs: paxData.obs
+          obs: paxData.obs,
+          img1: paxData.img1,
+          img2: paxData.img2,
+          texto: paxData.texto
         });
       }
 
@@ -156,6 +166,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         setVoos(voosData.map((v: any) => ({
           numero: v.numero,
           horario: v.horario,
+          hora_inicio: v.hora_inicio,
+          hora_fim: v.hora_fim,
           modulo: v.modulo,
           apf: v.apf,
           pax: v.pax
@@ -319,6 +331,43 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleEditOcorrencia = (o: Ocorrencia) => {
+    setEditingOcorrencia({ ...o });
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateOcorrencia = async () => {
+    if (!editingOcorrencia) return;
+    
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('ocorrencias')
+        .update({
+          descricao: editingOcorrencia.desc,
+          agente: editingOcorrencia.agente,
+          hora_inicio: editingOcorrencia.hora_inicio,
+          hora_fim: editingOcorrencia.hora_fim,
+          passageiro_nome: editingOcorrencia.passageiro_nome,
+          passageiro_cpf: editingOcorrencia.passageiro_cpf,
+          voo: editingOcorrencia.voo
+        })
+        .eq('id', editingOcorrencia.id);
+
+      if (error) throw error;
+      
+      setIsEditModalOpen(false);
+      setEditingOcorrencia(null);
+      if (activeTurno) buscarOcorrencias(activeTurno.id);
+    } catch (err: any) {
+      console.error('Erro ao atualizar ocorrência:', err);
+      alert('Erro ao atualizar: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendWebhook = async () => {
@@ -599,26 +648,55 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="space-y-3">
           {ocorrencias.map((o) => {
             const config = CANAL_CONFIG[o.canal];
+            const isGPA = o.tipo === 'gpa';
+            const isGDAF = o.tipo === 'gdaf';
+            
             return (
-              <div key={o.id} className="flex gap-3 p-3 bg-surface border border-border-2 rounded-lg">
+              <div key={o.id} className="flex gap-3 p-3 bg-surface border border-border-2 rounded-lg group relative">
                 <div className="w-16 shrink-0 pt-1">
                   <span className={cn("text-[9px] font-mono px-1.5 py-0.5 rounded border border-border", config.badge)}>
                     {config.label}
                   </span>
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase tracking-wider bg-accent/10 text-accent border border-accent/20">
-                      {o.tipo}
-                    </span>
-                    <span className="font-mono text-[11px] text-hint">{o.hora}</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase tracking-wider bg-accent/10 text-accent border border-accent/20">
+                        {isGPA ? 'Registro de passageiro armado' : 
+                         isGDAF ? 'Registro de despacho de arma de fogo' : 
+                         o.tipo}
+                      </span>
+                      <span className="font-mono text-[11px] text-hint">
+                        {o.hora}
+                        {(o.hora_inicio || o.hora_fim) && (
+                          <span className="ml-2 opacity-60">
+                            ({o.hora_inicio || '--:--'} às {o.hora_fim || '--:--'})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => handleEditOcorrencia(o)}
+                      className="opacity-0 group-hover:opacity-100 btn btn-secondary btn-xs py-0 px-2 text-[10px] transition-opacity"
+                    >
+                      Editar
+                    </button>
                   </div>
                   <div className="text-[13px] text-text leading-relaxed">
                     {o.desc}
                   </div>
+                  
+                  {(o.passageiro_nome || o.passageiro_cpf || o.voo) && (
+                    <div className="mt-2 p-2 bg-surface-2 rounded border border-border-2 text-[11px] grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {o.passageiro_nome && <div><span className="text-muted uppercase text-[9px] block">Passageiro</span>{o.passageiro_nome}</div>}
+                      {o.passageiro_cpf && <div><span className="text-muted uppercase text-[9px] block">CPF</span>{o.passageiro_cpf}</div>}
+                      {o.voo && <div><span className="text-muted uppercase text-[9px] block">Voo</span>{o.voo}</div>}
+                    </div>
+                  )}
+
                   {o.agente && (
                     <div className="text-[11px] text-hint mt-1 font-mono">
-                      {o.agente}
+                      <b>Envolvidos:</b> {o.agente}
                     </div>
                   )}
                   {o.imagem_url && (
@@ -706,6 +784,98 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <FileText size={14} />
                 Imprimir / Salvar PDF
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && editingOcorrencia && (
+        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-lg shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center justify-between">
+              <span className="text-sm font-medium">Editar Ocorrência</span>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-muted hover:text-text">
+                ✕
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-muted uppercase">Hora Início</label>
+                  <input 
+                    type="time" 
+                    value={editingOcorrencia.hora_inicio || ''}
+                    onChange={(e) => setEditingOcorrencia({...editingOcorrencia, hora_inicio: e.target.value})}
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-muted uppercase">Hora Fim</label>
+                  <input 
+                    type="time" 
+                    value={editingOcorrencia.hora_fim || ''}
+                    onChange={(e) => setEditingOcorrencia({...editingOcorrencia, hora_fim: e.target.value})}
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              {(editingOcorrencia.tipo === 'gpa' || editingOcorrencia.tipo === 'gdaf') && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted uppercase">Nome do Passageiro</label>
+                    <input 
+                      type="text" 
+                      value={editingOcorrencia.passageiro_nome || ''}
+                      onChange={(e) => setEditingOcorrencia({...editingOcorrencia, passageiro_nome: e.target.value})}
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono text-muted uppercase">CPF</label>
+                      <input 
+                        type="text" 
+                        value={editingOcorrencia.passageiro_cpf || ''}
+                        onChange={(e) => setEditingOcorrencia({...editingOcorrencia, passageiro_cpf: e.target.value})}
+                        className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono text-muted uppercase">Voo</label>
+                      <input 
+                        type="text" 
+                        value={editingOcorrencia.voo || ''}
+                        onChange={(e) => setEditingOcorrencia({...editingOcorrencia, voo: e.target.value})}
+                        className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-muted uppercase">Descrição</label>
+                <textarea 
+                  value={editingOcorrencia.desc}
+                  onChange={(e) => setEditingOcorrencia({...editingOcorrencia, desc: e.target.value})}
+                  className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm min-h-[100px]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-muted uppercase">Envolvidos</label>
+                <input 
+                  type="text" 
+                  value={editingOcorrencia.agente || ''}
+                  onChange={(e) => setEditingOcorrencia({...editingOcorrencia, agente: e.target.value})}
+                  className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setIsEditModalOpen(false)} className="btn btn-secondary">Cancelar</button>
+              <button onClick={handleUpdateOcorrencia} className="btn btn-primary">Salvar Alterações</button>
             </div>
           </div>
         </div>

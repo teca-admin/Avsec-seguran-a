@@ -16,11 +16,16 @@ interface OcorrenciaModalProps {
 export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAgentes, initialTipo }: OcorrenciaModalProps) {
   const [tipo, setTipo] = useState<OcorrenciaTipo>(initialTipo || 'avsec');
   const [hora, setHora] = useState(new Date().toTimeString().slice(0, 5));
+  const [horaFim, setHoraFim] = useState('');
   const [desc, setDesc] = useState('');
   const [agentesEnvolvidos, setAgentesEnvolvidos] = useState<string[]>([]);
   const [searchAgente, setSearchAgente] = useState('');
-  const [horaFim, setHoraFim] = useState('');
   const [imagem, setImagem] = useState<string | null>(null);
+
+  // GPA/GDAF specific
+  const [passageiroNome, setPassageiroNome] = useState('');
+  const [passageiroCpf, setPassageiroCpf] = useState('');
+  const [voo, setVoo] = useState('');
   
   // TECA specific
   const [tecaTipo, setTecaTipo] = useState('Exportação raio-x SMITHS');
@@ -79,12 +84,16 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
     onSave({
       tipo,
       hora,
+      hora_inicio: hora,
+      hora_fim: horaFim,
       desc: finalDesc,
       agente: finalAgente,
-      horaFim,
       imagem_url: imagem,
       ts: new Date().toISOString(),
-      apacs: apacs.filter(a => a.agente).map(a => `${a.agente}${a.ini ? ' (' + a.ini + '-' + a.fim + ')' : ''}`)
+      apacs: apacs.filter(a => a.agente).map(a => `${a.agente}${a.ini ? ' (' + a.ini + '-' + a.fim + ')' : ''}`),
+      passageiro_nome: passageiroNome,
+      passageiro_cpf: passageiroCpf,
+      voo: voo
     });
     
     // Reset
@@ -94,6 +103,10 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
     setImagem(null);
     setApacs([{ agente: '', ini: '', fim: '', detalhe: '' }]);
     setSearchTerms(['']);
+    setPassageiroNome('');
+    setPassageiroCpf('');
+    setVoo('');
+    setHoraFim('');
     onClose();
   };
 
@@ -116,15 +129,33 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
     if (canal === 'fox') {
       return [
         { value: 'teca', label: 'Escaneamento TECA / APAC' },
+        { value: 'varredura', label: 'Varredura Tango 03' },
         { value: 'avsec', label: 'AVSEC (segurança)' }
       ];
     }
-    if (canal === 'alfa' || canal === 'bravo') {
+    if (canal === 'alfa') {
       return [
         { value: 'passageiros', label: 'Fluxo de passageiros' },
-        { value: 'varredura', label: 'Varredura' },
+        { value: 'varredura', label: 'Varredura Canal Alfa' },
         { value: 'avsec', label: 'AVSEC (segurança)' },
         { value: 'receita', label: 'Atendimento Receita / PF' }
+      ];
+    }
+    if (canal === 'bravo') {
+      return [
+        { value: 'passageiros', label: 'Fluxo de passageiros' },
+        { value: 'avsec', label: 'AVSEC (segurança)' },
+        { value: 'receita', label: 'Atendimento Receita / PF' },
+        { value: 'gpa', label: 'GPA (Passageiro Armado)' }
+      ];
+    }
+    if (canal === 'charlie') {
+      return [
+        { value: 'passageiros', label: 'Fluxo de passageiros' },
+        { value: 'avsec', label: 'AVSEC (segurança)' },
+        { value: 'receita', label: 'Atendimento Receita / PF' },
+        { value: 'gpa', label: 'GPA (Passageiro Armado)' },
+        { value: 'gdaf', label: 'GDAF (Despacho de Arma)' }
       ];
     }
     return [
@@ -159,7 +190,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário</label>
+              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário Início</label>
               <input 
                 type="time" 
                 value={hora}
@@ -167,7 +198,54 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                 className="form-input text-sm"
               />
             </div>
+            <div>
+              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário Fim</label>
+              <input 
+                type="time" 
+                value={horaFim}
+                onChange={(e) => setHoraFim(e.target.value)}
+                className="form-input text-sm"
+              />
+            </div>
           </div>
+
+          {(tipo === 'gpa' || tipo === 'gdaf') && (
+            <div className="space-y-3 p-3 bg-surface-2 border border-border rounded">
+              <div className="text-[10px] font-mono text-muted uppercase tracking-wider mb-1">Dados do Passageiro</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] text-muted uppercase mb-1">Nome do Passageiro</label>
+                  <input 
+                    type="text"
+                    value={passageiroNome}
+                    onChange={(e) => setPassageiroNome(e.target.value)}
+                    className="form-input text-sm"
+                    placeholder="Nome completo"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted uppercase mb-1">CPF</label>
+                  <input 
+                    type="text"
+                    value={passageiroCpf}
+                    onChange={(e) => setPassageiroCpf(e.target.value)}
+                    className="form-input text-sm"
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-muted uppercase mb-1">Voo</label>
+                  <input 
+                    type="text"
+                    value={voo}
+                    onChange={(e) => setVoo(e.target.value)}
+                    className="form-input text-sm"
+                    placeholder="Ex: AD1234"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {tipo === 'teca' ? (
             <div className="space-y-3">
@@ -343,7 +421,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
               {(tipo === 'passageiros' || tipo === 'varredura') && (
                 <div>
                   <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">
-                    {tipo === 'passageiros' ? 'Foto do Fluxo' : 'Foto da Varredura'}
+                    {tipo === 'passageiros' ? 'Foto do Fluxo' : 
+                     tipo === 'varredura' ? 'Foto da Varredura' : 
+                     'Foto da Ocorrência'}
                   </label>
                   <input 
                     type="file" 
@@ -413,15 +493,6 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                       }
                     </div>
                   )}
-                </div>
-                <div>
-                  <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário de término</label>
-                  <input 
-                    type="time" 
-                    value={horaFim}
-                    onChange={(e) => setHoraFim(e.target.value)}
-                    className="form-input text-sm"
-                  />
                 </div>
               </div>
             </div>

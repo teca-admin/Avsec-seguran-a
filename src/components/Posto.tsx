@@ -48,7 +48,10 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     total: '',
     pico: '',
     horaPico: '',
-    obs: ''
+    obs: '',
+    img1: null as string | null,
+    img2: null as string | null,
+    texto: ''
   });
   const [isSavingPax, setIsSavingPax] = useState(false);
 
@@ -59,7 +62,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     horario: '',
     modulo: '',
     apf: '',
-    pax: ''
+    pax: '',
+    hora_inicio: '',
+    hora_fim: ''
   });
   const [isSavingVoo, setIsSavingVoo] = useState(false);
 
@@ -343,11 +348,16 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           canal,
           tipo: data.tipo,
           hora: data.hora,
+          hora_inicio: data.hora_inicio || data.hora,
+          hora_fim: data.hora_fim,
           descricao: data.desc,
           agente: data.agente,
           ts: data.ts,
           imagem_url: data.imagem_url,
-          apacs: data.apacs
+          apacs: data.apacs,
+          passageiro_nome: data.passageiro_nome,
+          passageiro_cpf: data.passageiro_cpf,
+          voo: data.voo
         })
         .select()
         .single();
@@ -429,7 +439,10 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           total: paxFlow.total,
           pico: paxFlow.pico,
           hora_pico: paxFlow.horaPico,
-          obs: paxFlow.obs
+          obs: paxFlow.obs,
+          img1: paxFlow.img1,
+          img2: paxFlow.img2,
+          texto: paxFlow.texto
         }, { onConflict: 'turno_id' });
 
       if (error) throw error;
@@ -459,7 +472,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           horario: novoVoo.horario,
           modulo: novoVoo.modulo,
           apf: novoVoo.apf,
-          pax: novoVoo.pax
+          pax: novoVoo.pax,
+          hora_inicio: novoVoo.hora_inicio,
+          hora_fim: novoVoo.hora_fim
         })
         .select()
         .single();
@@ -472,7 +487,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           horario: '',
           modulo: '',
           apf: '',
-          pax: ''
+          pax: '',
+          hora_inicio: '',
+          hora_fim: ''
         });
         alert('Voo registrado com sucesso!');
       }
@@ -572,8 +589,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           { id: 'efetivo', label: 'Efetivo', icon: Users },
           { id: 'ocorrencias', label: 'Ocorrências', icon: ClipboardList },
           { id: 'equipamentos', label: 'Equipamentos', icon: HardDrive },
-          ...(canal !== 'fox' ? [{ id: 'passageiros', label: 'Passageiros/Voos', icon: Plane }] : []),
-          ...((canal === 'alfa' || canal === 'bravo') ? [{ id: 'varredura', label: 'Varredura', icon: Search }] : []),
+          ...(canal === 'alfa' ? [{ id: 'passageiros', label: 'Passageiros/Voos', icon: Plane }] : []),
+          ...((canal === 'fox' || canal === 'alfa') ? [{ id: 'varredura', label: 'Varredura', icon: Search }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -922,6 +939,67 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     placeholder="Descreva o fluxo do turno ou observações relevantes..."
                   />
                 </div>
+
+                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Foto do Fluxo 1</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setPaxFlow(prev => ({ ...prev, img1: reader.result as string }));
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="form-input text-xs"
+                    />
+                    {paxFlow.img1 && (
+                      <div className="mt-2 relative w-24 h-24 border border-border rounded overflow-hidden">
+                        <img src={paxFlow.img1} alt="Preview 1" className="w-full h-full object-cover" />
+                        <button onClick={() => setPaxFlow(prev => ({ ...prev, img1: null }))} className="absolute top-0 right-0 bg-black/50 text-white p-0.5">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Foto do Fluxo 2</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setPaxFlow(prev => ({ ...prev, img2: reader.result as string }));
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="form-input text-xs"
+                    />
+                    {paxFlow.img2 && (
+                      <div className="mt-2 relative w-24 h-24 border border-border rounded overflow-hidden">
+                        <img src={paxFlow.img2} alt="Preview 2" className="w-full h-full object-cover" />
+                        <button onClick={() => setPaxFlow(prev => ({ ...prev, img2: null }))} className="absolute top-0 right-0 bg-black/50 text-white p-0.5">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 md:col-span-3">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Texto Adicional</label>
+                  <textarea 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent transition-all min-h-[80px] resize-none" 
+                    value={paxFlow.texto}
+                    onChange={e => setPaxFlow({...paxFlow, texto: e.target.value})}
+                    placeholder="Informações adicionais sobre o fluxo..."
+                  />
+                </div>
               </div>
               
               <div className="pt-6 border-t border-border-2">
@@ -977,6 +1055,24 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                       className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
                       value={novoVoo.pax}
                       onChange={e => setNovoVoo({...novoVoo, pax: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">Início</label>
+                    <input 
+                      type="time" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                      value={novoVoo.hora_inicio}
+                      onChange={e => setNovoVoo({...novoVoo, hora_inicio: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-hint">Fim</label>
+                    <input 
+                      type="time" 
+                      className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                      value={novoVoo.hora_fim}
+                      onChange={e => setNovoVoo({...novoVoo, hora_fim: e.target.value})}
                     />
                   </div>
                 </div>

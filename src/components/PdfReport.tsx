@@ -388,10 +388,29 @@ export default function PdfReport({
             {ocorrencias.map((o, i) => (
               <div key={i} className="ocorrencia-card">
                 <div className="ocorrencia-header">
-                  <span className="ocorrencia-tipo">{o.tipo}</span>
-                  <span className="ocorrencia-hora">{o.hora}</span>
+                  <span className="ocorrencia-tipo">
+                    {o.tipo === 'gpa' ? 'Registro de passageiro armado' : 
+                     o.tipo === 'gdaf' ? 'Registro de despacho de arma de fogo' : 
+                     o.tipo}
+                  </span>
+                  <span className="ocorrencia-hora">
+                    {o.hora}
+                    {(o.hora_inicio || o.hora_fim) && (
+                      <span style={{ marginLeft: '8px', fontWeight: 'normal', fontSize: '10px', color: '#6b7280' }}>
+                        ({o.hora_inicio || '--:--'} às {o.hora_fim || '--:--'})
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div className="ocorrencia-desc">{o.desc}</div>
+                
+                {(o.passageiro_nome || o.passageiro_cpf || o.voo) && (
+                  <div style={{ marginTop: '10px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '4px', border: '1px solid #e5e7eb', fontSize: '11px' }}>
+                    {o.passageiro_nome && <div><b>Passageiro:</b> {o.passageiro_nome}</div>}
+                    {o.passageiro_cpf && <div><b>CPF:</b> {o.passageiro_cpf}</div>}
+                    {o.voo && <div><b>Voo:</b> {o.voo}</div>}
+                  </div>
+                )}
                 {o.imagem_url && (
                   <div className="img-container">
                     <img 
@@ -463,6 +482,29 @@ export default function PdfReport({
                 <div className="pax-value">{paxFlow.horaPico || '—'}</div>
               </div>
             </div>
+
+            {paxFlow.texto && (
+              <div style={{ marginBottom: '15px', fontSize: '11px', color: '#374151', padding: '12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                <b style={{ color: '#ee2f24', textTransform: 'uppercase', fontSize: '9px', display: 'block', marginBottom: '5px' }}>Informações Adicionais:</b>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{paxFlow.texto}</div>
+              </div>
+            )}
+
+            {(paxFlow.img1 || paxFlow.img2) && (
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                {paxFlow.img1 && (
+                  <div style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                    <img src={paxFlow.img1} alt="Fluxo 1" style={{ width: '100%', height: '150px', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                  </div>
+                )}
+                {paxFlow.img2 && (
+                  <div style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                    <img src={paxFlow.img2} alt="Fluxo 2" style={{ width: '100%', height: '150px', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                  </div>
+                )}
+              </div>
+            )}
+
             {paxFlow.obs && (
               <div style={{ fontSize: '11px', color: '#374151', padding: '12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
                 <b style={{ color: '#ee2f24', textTransform: 'uppercase', fontSize: '9px', display: 'block', marginBottom: '5px' }}>Observações:</b>
@@ -483,6 +525,7 @@ export default function PdfReport({
                 <tr>
                   <th>Nº Voo</th>
                   <th>Horário</th>
+                  <th>Início/Fim</th>
                   <th>Módulo</th>
                   <th>APF</th>
                   <th>Pax</th>
@@ -493,6 +536,9 @@ export default function PdfReport({
                   <tr key={i}>
                     <td style={{ fontWeight: 'bold', color: '#ee2f24' }}>{v.numero}</td>
                     <td>{v.horario}</td>
+                    <td style={{ fontSize: '10px' }}>
+                      {v.hora_inicio || '--:--'} às {v.hora_fim || '--:--'}
+                    </td>
                     <td>{v.modulo}</td>
                     <td>{v.apf}</td>
                     <td style={{ fontWeight: 'bold' }}>{v.pax}</td>

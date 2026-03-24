@@ -15,19 +15,24 @@ export interface Turno {
   fim: string;
 }
 
-export type OcorrenciaTipo = 'teca' | 'avsec' | 'equipamento' | 'receita' | 'treinamento' | 'passageiros' | 'varredura';
+export type OcorrenciaTipo = 'teca' | 'avsec' | 'equipamento' | 'receita' | 'treinamento' | 'passageiros' | 'varredura' | 'gpa' | 'gdaf';
 
 export interface Ocorrencia {
   id: string;
   canal: Canal;
   tipo: OcorrenciaTipo;
   hora: string;
+  hora_inicio?: string;
+  hora_fim?: string;
   desc: string;
   agente?: string;
   imagem_url?: string;
   apacs?: string[];
   ts: number;
   turnoId: string;
+  passageiro_nome?: string;
+  passageiro_cpf?: string;
+  voo?: string;
 }
 
 export interface EquipamentoDefeito {
@@ -45,6 +50,8 @@ export interface VooInternacional {
   modulo: string;
   apf: string;
   pax: string;
+  hora_inicio?: string;
+  hora_fim?: string;
 }
 
 export interface PaxFlow {
@@ -52,4 +59,7 @@ export interface PaxFlow {
   pico: string;
   horaPico: string;
   obs: string;
+  img1?: string;
+  img2?: string;
+  texto?: string;
 }

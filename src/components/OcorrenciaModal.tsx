@@ -11,9 +11,10 @@ interface OcorrenciaModalProps {
   canal: Canal;
   allAgentes: any[];
   initialTipo?: OcorrenciaTipo;
+  initialData?: any;
 }
 
-export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAgentes, initialTipo }: OcorrenciaModalProps) {
+export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAgentes, initialTipo, initialData }: OcorrenciaModalProps) {
   const [tipo, setTipo] = useState<OcorrenciaTipo>(initialTipo || 'avsec');
   const [hora, setHora] = useState(new Date().toTimeString().slice(0, 5));
   const [horaFim, setHoraFim] = useState('');
@@ -34,20 +35,47 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
 
   useEffect(() => {
     if (isOpen) {
-      setHora(new Date().toTimeString().slice(0, 5));
-      
-      if (initialTipo) {
-        setTipo(initialTipo);
+      if (initialData) {
+        setTipo(initialData.tipo || 'avsec');
+        setHora(initialData.hora || initialData.hora_inicio || new Date().toTimeString().slice(0, 5));
+        setHoraFim(initialData.hora_fim || '');
+        setDesc(initialData.desc || '');
+        setAgentesEnvolvidos(initialData.agente ? initialData.agente.split(', ') : []);
+        setImagem(initialData.imagem_url || null);
+        setPassageiroNome(initialData.passageiro_nome || '');
+        setPassageiroCpf(initialData.passageiro_cpf || '');
+        setVoo(initialData.voo || '');
+        
+        if (initialData.tipo === 'teca') {
+          // Try to parse tecaTipo from desc
+          const lines = initialData.desc.split('\n');
+          if (lines.length > 0) {
+            setTecaTipo(lines[0]);
+          }
+          // Note: apacs parsing from string is complex, might need better data structure in DB
+        }
       } else {
-        // Set default type based on channel
-        if (canal === 'fox') {
-          setTipo('teca');
+        setHora(new Date().toTimeString().slice(0, 5));
+        setHoraFim('');
+        setDesc('');
+        setAgentesEnvolvidos([]);
+        setImagem(null);
+        setPassageiroNome('');
+        setPassageiroCpf('');
+        setVoo('');
+        
+        if (initialTipo) {
+          setTipo(initialTipo);
         } else {
-          setTipo('passageiros');
+          if (canal === 'fox') {
+            setTipo('teca');
+          } else {
+            setTipo('passageiros');
+          }
         }
       }
     }
-  }, [isOpen, canal, initialTipo]);
+  }, [isOpen, canal, initialTipo, initialData]);
 
   if (!isOpen) return null;
 

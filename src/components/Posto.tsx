@@ -67,6 +67,12 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     hora_fim: ''
   });
   const [isSavingVoo, setIsSavingVoo] = useState(false);
+  const [editingEquipamento, setEditingEquipamento] = useState<any | null>(null);
+  const [editingVoo, setEditingVoo] = useState<any | null>(null);
+  const [isEditEquipModalOpen, setIsEditEquipModalOpen] = useState(false);
+  const [isEditVooModalOpen, setIsEditVooModalOpen] = useState(false);
+  const [editingOcorrencia, setEditingOcorrencia] = useState<Ocorrencia | null>(null);
+  const [isEditOcorrenciaModalOpen, setIsEditOcorrenciaModalOpen] = useState(false);
 
   const fetchAgentes = useCallback(async () => {
     try {
@@ -501,6 +507,109 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   };
 
+  const handleEditOcorrencia = (o: Ocorrencia) => {
+    setEditingOcorrencia({ ...o });
+    setIsEditOcorrenciaModalOpen(true);
+  };
+
+  const handleUpdateOcorrencia = async (data: any) => {
+    if (!editingOcorrencia) return;
+    
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('ocorrencias')
+        .update({
+          descricao: data.desc,
+          agente: data.agente,
+          hora: data.hora,
+          hora_inicio: data.hora_inicio,
+          hora_fim: data.hora_fim,
+          passageiro_nome: data.passageiro_nome,
+          passageiro_cpf: data.passageiro_cpf,
+          voo: data.voo,
+          imagem_url: data.imagem_url,
+          apacs: data.apacs
+        })
+        .eq('id', editingOcorrencia.id);
+
+      if (error) throw error;
+      
+      setIsEditOcorrenciaModalOpen(false);
+      setEditingOcorrencia(null);
+      if (activeTurnoId) fetchOcorrencias(activeTurnoId);
+    } catch (err: any) {
+      console.error('Erro ao atualizar ocorrência:', err);
+      alert('Erro ao atualizar: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditEquipamento = (eq: any) => {
+    setEditingEquipamento({ ...eq });
+    setIsEditEquipModalOpen(true);
+  };
+
+  const handleUpdateEquipamento = async () => {
+    if (!editingEquipamento) return;
+    try {
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('equipamentos')
+        .update({
+          tipo: editingEquipamento.tipo,
+          data_defeito: editingEquipamento.data_defeito,
+          descricao: editingEquipamento.descricao,
+          local: editingEquipamento.local,
+          os: editingEquipamento.os,
+          prazo: editingEquipamento.prazo
+        })
+        .eq('id', editingEquipamento.id);
+
+      if (error) throw error;
+      setIsEditEquipModalOpen(false);
+      setEditingEquipamento(null);
+      if (activeTurnoId) fetchEquipamentos(activeTurnoId);
+    } catch (err: any) {
+      console.error('Erro ao atualizar equipamento:', err);
+      alert('Erro ao atualizar: ' + err.message);
+    }
+  };
+
+  const handleEditVoo = (v: any) => {
+    setEditingVoo({ ...v });
+    setIsEditVooModalOpen(true);
+  };
+
+  const handleUpdateVoo = async () => {
+    if (!editingVoo) return;
+    try {
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('voos_internacionais')
+        .update({
+          numero: editingVoo.numero,
+          horario: editingVoo.horario,
+          modulo: editingVoo.modulo,
+          apf: editingVoo.apf,
+          pax: editingVoo.pax,
+          hora_inicio: editingVoo.hora_inicio,
+          hora_fim: editingVoo.hora_fim
+        })
+        .eq('id', editingVoo.id);
+
+      if (error) throw error;
+      setIsEditVooModalOpen(false);
+      setEditingVoo(null);
+      if (activeTurnoId) fetchVoos(activeTurnoId);
+    } catch (err: any) {
+      console.error('Erro ao atualizar voo:', err);
+      alert('Erro ao atualizar: ' + err.message);
+    }
+  };
+
   if (error) {
     return (
       <div className="card p-8 border-amber-500/50 bg-amber-500/5 text-center space-y-4">
@@ -748,12 +857,20 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           ) : (
             <div className="space-y-3">
               {ocorrencias.map((o) => (
-                <div key={o.id} className="bg-surface-2 border border-border-2 rounded p-3 px-4">
+                <div key={o.id} className="bg-surface-2 border border-border-2 rounded p-3 px-4 group relative">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase tracking-wider bg-accent/10 text-accent border border-accent/20">
                       {o.tipo}
                     </span>
-                    <span className="font-mono text-[11px] text-muted">{o.hora}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-muted">{o.hora}</span>
+                      <button 
+                        onClick={() => handleEditOcorrencia(o)}
+                        className="opacity-0 group-hover:opacity-100 btn btn-secondary btn-xs py-0 px-2 text-[10px] transition-opacity"
+                      >
+                        Editar
+                      </button>
+                    </div>
                   </div>
                   <div className="text-[13px] text-text whitespace-pre-wrap leading-relaxed">
                     {o.desc}
@@ -860,11 +977,19 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               </div>
               <div className="grid grid-cols-1 gap-3">
                 {equipamentos.map((eq, i) => (
-                  <div key={i} className="card rounded-md p-4 border-border-2 bg-surface-2">
+                  <div key={i} className="card rounded-md p-4 border-border-2 bg-surface-2 group relative">
                     <div className="flex justify-between items-start mb-2">
                       <div className="font-bold text-sm text-text">{eq.tipo}</div>
-                      <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-3 text-text border border-border">
-                        OS: {eq.os || 'N/A'}
+                      <div className="flex items-center gap-2">
+                        <div className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-3 text-text border border-border">
+                          OS: {eq.os || 'N/A'}
+                        </div>
+                        <button 
+                          onClick={() => handleEditEquipamento(eq)}
+                          className="opacity-0 group-hover:opacity-100 btn btn-secondary btn-xs py-0 px-2 text-[10px] transition-opacity"
+                        >
+                          Editar
+                        </button>
                       </div>
                     </div>
                     <div className="text-xs text-muted mb-3 leading-relaxed">
@@ -1092,7 +1217,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2">Voos Registrados</div>
                     <div className="grid grid-cols-1 gap-2">
                       {voos.map((v, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 px-3 bg-surface-2 border border-border-2 rounded text-[11px]">
+                        <div key={i} className="flex items-center justify-between p-2 px-3 bg-surface-2 border border-border-2 rounded text-[11px] group relative">
                           <div className="flex items-center gap-4">
                             <span className="font-bold text-blue-500">{v.numero}</span>
                             <span className="text-muted">{v.horario}</span>
@@ -1101,6 +1226,12 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                           <div className="flex items-center gap-4">
                             <span className="text-muted">APF: {v.apf || '—'}</span>
                             <span className="font-mono bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">Pax: {v.pax || '0'}</span>
+                            <button 
+                              onClick={() => handleEditVoo(v)}
+                              className="opacity-0 group-hover:opacity-100 btn btn-secondary btn-xs py-0 px-2 text-[10px] transition-opacity"
+                            >
+                              Editar
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1195,6 +1326,178 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         allAgentes={allAgentes}
         initialTipo={modalInitialTipo}
       />
+
+      {/* Modal de Edição de Ocorrência */}
+      <OcorrenciaModal 
+        isOpen={isEditOcorrenciaModalOpen} 
+        onClose={() => {
+          setIsEditOcorrenciaModalOpen(false);
+          setEditingOcorrencia(null);
+        }} 
+        onSave={handleUpdateOcorrencia}
+        canal={canal}
+        allAgentes={allAgentes}
+        initialData={editingOcorrencia ? {
+          tipo: editingOcorrencia.tipo,
+          hora: editingOcorrencia.hora,
+          hora_inicio: (editingOcorrencia as any).hora_inicio,
+          hora_fim: (editingOcorrencia as any).hora_fim,
+          desc: editingOcorrencia.desc,
+          agente: editingOcorrencia.agente,
+          imagem_url: editingOcorrencia.imagem_url,
+          apacs: editingOcorrencia.apacs,
+          passageiro_nome: (editingOcorrencia as any).passageiro_nome,
+          passageiro_cpf: (editingOcorrencia as any).passageiro_cpf,
+          voo: (editingOcorrencia as any).voo
+        } : undefined}
+      />
+
+      {/* Modal de Edição de Equipamento */}
+      {isEditEquipModalOpen && editingEquipamento && (
+        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-lg shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center justify-between">
+              <span className="text-sm font-medium">Editar Equipamento</span>
+              <button onClick={() => setIsEditEquipModalOpen(false)} className="text-muted hover:text-text">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Tipo/Equipamento</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent" 
+                    value={editingEquipamento.tipo}
+                    onChange={e => setEditingEquipamento({...editingEquipamento, tipo: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Local</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-3 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none text-muted cursor-not-allowed" 
+                    value={editingEquipamento.local}
+                    readOnly
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Descrição do Defeito</label>
+                  <textarea 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent min-h-[80px] resize-none" 
+                    value={editingEquipamento.descricao}
+                    onChange={e => setEditingEquipamento({...editingEquipamento, descricao: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Nº OS</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent" 
+                    value={editingEquipamento.os}
+                    onChange={e => setEditingEquipamento({...editingEquipamento, os: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Prazo</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-accent" 
+                    value={editingEquipamento.prazo}
+                    onChange={e => setEditingEquipamento({...editingEquipamento, prazo: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setIsEditEquipModalOpen(false)} className="btn btn-secondary">Cancelar</button>
+              <button onClick={handleUpdateEquipamento} className="btn btn-primary">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Voo */}
+      {isEditVooModalOpen && editingVoo && (
+        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-lg shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center justify-between">
+              <span className="text-sm font-medium">Editar Voo Internacional</span>
+              <button onClick={() => setIsEditVooModalOpen(false)} className="text-muted hover:text-text">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">Voo</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.numero}
+                    onChange={e => setEditingVoo({...editingVoo, numero: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">Horário</label>
+                  <input 
+                    type="time" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.horario}
+                    onChange={e => setEditingVoo({...editingVoo, horario: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">Módulo</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.modulo}
+                    onChange={e => setEditingVoo({...editingVoo, modulo: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">APF</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.apf}
+                    onChange={e => setEditingVoo({...editingVoo, apf: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">Pax</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.pax}
+                    onChange={e => setEditingVoo({...editingVoo, pax: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">Início</label>
+                  <input 
+                    type="time" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.hora_inicio}
+                    onChange={e => setEditingVoo({...editingVoo, hora_inicio: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-hint">Fim</label>
+                  <input 
+                    type="time" 
+                    className="w-full bg-surface-2 border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" 
+                    value={editingVoo.hora_fim}
+                    onChange={e => setEditingVoo({...editingVoo, hora_fim: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setIsEditVooModalOpen(false)} className="btn btn-secondary">Cancelar</button>
+              <button onClick={handleUpdateVoo} className="btn btn-primary">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

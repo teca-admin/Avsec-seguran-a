@@ -395,7 +395,7 @@ export default function PdfReport({
                   </span>
                   <span className="ocorrencia-hora">
                     {o.hora}
-                    {(o.hora_inicio || o.hora_fim) && (
+                    {o.tipo !== 'teca' && (o.hora_inicio || o.hora_fim) && (
                       <span style={{ marginLeft: '8px', fontWeight: 'normal', fontSize: '10px', color: '#6b7280' }}>
                         ({o.hora_inicio || '--:--'} às {o.hora_fim || '--:--'})
                       </span>

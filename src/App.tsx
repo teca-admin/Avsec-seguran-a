@@ -16,7 +16,7 @@ const hasValidConfig = Boolean(SUPABASE_URL) && Boolean(SUPABASE_KEY);
 
 export default function App() {
   const [user, setUser] = useState<Canal | null>(null);
-  const [turno, setTurno] = useState('B');
+  const [turno, setTurno] = useState('A');
 
   if (!hasValidConfig) {
     return (

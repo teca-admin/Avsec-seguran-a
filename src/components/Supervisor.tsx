@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
 import { cn } from '../lib/utils';
-import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane } from 'lucide-react';
+import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane, Clock, Plus } from 'lucide-react';
 import PdfReport from './PdfReport';
 import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
 import { supabase } from '../lib/supabase';
@@ -24,6 +24,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
   });
   const [activeTurno, setActiveTurno] = useState<any>(null);
+  const [isLoadingTurno, setIsLoadingTurno] = useState(true);
+  const [isOpeningTurno, setIsOpeningTurno] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -188,77 +190,73 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   const fetchActiveTurno = useCallback(async () => {
     try {
+      setIsLoadingTurno(true);
+      // Buscar QUALQUER turno aberto
+      const { data, error } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .select('*')
+        .eq('canal', 'geral')
+        .is('fechado_em', null)
+        .order('data', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setActiveTurno(data);
+        onTurnoChange(data.letra);
+        return data.id;
+      } else {
+        setActiveTurno(null);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar turno ativo:', err);
+    } finally {
+      setIsLoadingTurno(false);
+    }
+    return null;
+  }, [onTurnoChange]);
+
+  const handleAbrirTurno = async () => {
+    try {
+      setIsOpeningTurno(true);
       const now = new Date();
       const hour = now.getHours();
+      
+      // Determinar a letra do turno baseada no horário atual
       let currentShiftLetra = 'A';
       if (hour >= 6 && hour < 12) currentShiftLetra = 'B';
       else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
       else if (hour >= 18) currentShiftLetra = 'D';
 
-      let turnoId: string | null = null;
-      let turnoData: any = null;
+      const { data: newTurno, error: createError } = await supabase
+        .schema('seguranca')
+        .from('turnos')
+        .insert({
+          letra: currentShiftLetra,
+          data: now.toISOString().split('T')[0],
+          aberto_em: now.toISOString(),
+          canal: 'geral'
+        })
+        .select()
+        .single();
 
-      // Iterative approach to find/create active turno
-      let attempts = 0;
-      while (attempts < 2) {
-        const { data, error } = await supabase
-          .schema('seguranca')
-          .from('turnos')
-          .select('*')
-          .eq('canal', 'geral')
-          .is('fechado_em', null)
-          .order('data', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      if (createError) throw createError;
 
-        if (error) throw error;
-
-        if (data) {
-          if (data.letra === currentShiftLetra) {
-            turnoData = data;
-            turnoId = data.id;
-            break;
-          } else {
-            // Close old turno
-            await supabase
-              .schema('seguranca')
-              .from('turnos')
-              .update({ fechado_em: now.toISOString() })
-              .eq('id', data.id);
-            attempts++;
-            continue; // Try again to create new turno
-          }
-        } else {
-          // Create new turno
-          const { data: newTurno, error: createError } = await supabase
-            .schema('seguranca')
-            .from('turnos')
-            .insert({
-              letra: currentShiftLetra,
-              data: now.toISOString().split('T')[0],
-              aberto_em: now.toISOString(),
-              canal: 'geral'
-            })
-            .select()
-            .single();
-            
-          if (createError) throw createError;
-          turnoData = newTurno;
-          turnoId = newTurno.id;
-          break;
-        }
+      if (newTurno) {
+        setActiveTurno(newTurno);
+        onTurnoChange(newTurno.letra);
+        // Recarregar para inicializar os listeners com o novo ID
+        window.location.reload();
       }
-
-      if (turnoData) {
-        setActiveTurno(turnoData);
-        onTurnoChange(turnoData.letra);
-        return turnoId;
-      }
-    } catch (err) {
-      console.error('Erro ao buscar/criar turno ativo:', err);
+    } catch (error) {
+      console.error('Erro ao abrir novo turno:', error);
+    } finally {
+      setIsOpeningTurno(false);
     }
-    return null;
-  }, [onTurnoChange]);
+  };
 
   const encerrarTurno = async () => {
     if (!activeTurno) return;
@@ -595,6 +593,42 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           className="btn btn-primary btn-sm"
         >
           Tentar Novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (isLoadingTurno) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <Loader2 className="animate-spin text-accent mb-4" size={32} />
+        <h2 className="text-lg font-medium text-text mb-1">Carregando Turno</h2>
+        <p className="text-sm text-hint">Sincronizando dados com o servidor...</p>
+      </div>
+    );
+  }
+
+  if (!activeTurno) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <div className="w-16 h-16 bg-surface-2 rounded-full flex items-center justify-center mb-6 border border-border-2">
+          <Clock className="text-muted" size={32} />
+        </div>
+        <h2 className="text-xl font-medium text-text mb-2">Nenhum Turno Ativo</h2>
+        <p className="text-sm text-hint max-w-xs mb-8">
+          O turno anterior foi encerrado. Clique no botão abaixo para iniciar o novo turno e liberar o acesso para os postos.
+        </p>
+        <button 
+          onClick={handleAbrirTurno}
+          disabled={isOpeningTurno}
+          className="btn btn-primary px-8 py-3 gap-2 text-sm shadow-lg shadow-accent/20"
+        >
+          {isOpeningTurno ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : (
+            <Plus size={18} />
+          )}
+          {isOpeningTurno ? 'Iniciando...' : 'Iniciar Novo Turno'}
         </button>
       </div>
     );
@@ -940,26 +974,28 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-muted uppercase">Hora Início</label>
-                  <input 
-                    type="time" 
-                    value={editingOcorrencia.hora_inicio || ''}
-                    onChange={(e) => setEditingOcorrencia({...editingOcorrencia, hora_inicio: e.target.value})}
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
-                  />
+              {editingOcorrencia.tipo !== 'teca' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted uppercase">Hora Início</label>
+                    <input 
+                      type="time" 
+                      value={editingOcorrencia.hora_inicio || ''}
+                      onChange={(e) => setEditingOcorrencia({...editingOcorrencia, hora_inicio: e.target.value})}
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-muted uppercase">Hora Fim</label>
+                    <input 
+                      type="time" 
+                      value={editingOcorrencia.hora_fim || ''}
+                      onChange={(e) => setEditingOcorrencia({...editingOcorrencia, hora_fim: e.target.value})}
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-muted uppercase">Hora Fim</label>
-                  <input 
-                    type="time" 
-                    value={editingOcorrencia.hora_fim || ''}
-                    onChange={(e) => setEditingOcorrencia({...editingOcorrencia, hora_fim: e.target.value})}
-                    className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
+              )}
 
               {(editingOcorrencia.tipo === 'gpa' || editingOcorrencia.tipo === 'gdaf') && (
                 <div className="space-y-3">

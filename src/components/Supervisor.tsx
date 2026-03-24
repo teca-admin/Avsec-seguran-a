@@ -805,14 +805,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                          isGDAF ? 'Registro de despacho de arma de fogo' : 
                          o.tipo}
                       </span>
-                      <span className="font-mono text-[11px] text-hint">
-                        {o.hora}
-                        {(o.hora_inicio || o.hora_fim) && (
-                          <span className="ml-2 opacity-60">
-                            ({o.hora_inicio || '--:--'} às {o.hora_fim || '--:--'})
-                          </span>
-                        )}
-                      </span>
+                      {o.tipo !== 'teca' && (
+                        <span className="font-mono text-[11px] text-hint">
+                          {o.hora}
+                          {(o.hora_inicio || o.hora_fim) && (
+                            <span className="ml-2 opacity-60">
+                              ({o.hora_inicio || '--:--'} às {o.hora_fim || '--:--'})
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </div>
                     <button 
                       onClick={() => handleEditOcorrencia(o)}

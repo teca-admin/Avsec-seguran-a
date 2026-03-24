@@ -111,9 +111,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
 
     onSave({
       tipo,
-      hora,
-      hora_inicio: hora,
-      hora_fim: horaFim,
+      hora: tipo === 'teca' ? '' : hora,
+      hora_inicio: tipo === 'teca' ? '' : hora,
+      hora_fim: tipo === 'teca' ? '' : horaFim,
       desc: finalDesc,
       agente: finalAgente,
       imagem_url: imagem,
@@ -204,7 +204,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
         </div>
 
         <div className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className={cn("grid gap-3", tipo === 'teca' ? "grid-cols-1" : "grid-cols-2")}>
             <div>
               <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Tipo de ocorrência</label>
               <select 
@@ -217,24 +217,28 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário Início</label>
-              <input 
-                type="time" 
-                value={hora}
-                onChange={(e) => setHora(e.target.value)}
-                className="form-input text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário Fim</label>
-              <input 
-                type="time" 
-                value={horaFim}
-                onChange={(e) => setHoraFim(e.target.value)}
-                className="form-input text-sm"
-              />
-            </div>
+            {tipo !== 'teca' && (
+              <>
+                <div>
+                  <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário Início</label>
+                  <input 
+                    type="time" 
+                    value={hora}
+                    onChange={(e) => setHora(e.target.value)}
+                    className="form-input text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Horário Fim</label>
+                  <input 
+                    type="time" 
+                    value={horaFim}
+                    onChange={(e) => setHoraFim(e.target.value)}
+                    className="form-input text-sm"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {(tipo === 'gpa' || tipo === 'gdaf') && (

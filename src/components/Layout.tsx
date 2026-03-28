@@ -27,11 +27,12 @@ export default function Layout({ children, user, onLogout, turno }: LayoutProps)
     <div className="min-h-screen flex flex-col">
       <header className="h-[52px] bg-surface border-b border-border px-5 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 bg-accent rounded flex items-center justify-center shrink-0">
-            <svg viewBox="0 0 24 24" className="w-4 h-4 text-white fill-current">
-              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
-            </svg>
-          </div>
+          <img 
+            src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g" 
+            alt="WFS Logo" 
+            className="h-7 w-auto object-contain"
+            referrerPolicy="no-referrer"
+          />
           <span className="font-mono text-[11px] text-accent tracking-widest">AVSEC</span>
           <span className="text-border text-lg leading-none">·</span>
           <span className="text-[13px] font-medium text-text">{config.name}</span>

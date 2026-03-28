@@ -67,7 +67,15 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_50%_0%,rgba(238,47,36,0.06)_0%,transparent_60%)]">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_50%_0%,rgba(238,47,36,0.06)_0%,transparent_60%)] relative">
+      <div className="absolute top-8 left-8">
+        <img 
+          src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g" 
+          alt="WFS Logo" 
+          className="h-[84px] w-auto object-contain opacity-90"
+          referrerPolicy="no-referrer"
+        />
+      </div>
       <div className="w-full max-w-[380px]">
         <div className="mb-10 text-center">
           <div className="flex justify-center mb-6">

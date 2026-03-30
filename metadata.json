@@ -1,5 +1,5 @@
 {
-  "name": "AVSEC - Sistema de Passagem de Serviço",
+  "name": "AVSEC",
   "description": "Sistema digital para registro de efetivo, ocorrências e geração de relatórios de passagem de serviço AVSEC - Aeroporto de Manaus.",
   "requestFramePermissions": []
 }

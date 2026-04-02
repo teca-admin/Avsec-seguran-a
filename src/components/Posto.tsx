@@ -90,6 +90,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, []);
 
   const fetchActiveTurno = useCallback(async () => {
+    console.log(`🔍 [Posto ${canal}] Buscando turno ativo...`);
     try {
       setLoading(true);
       setError(null);
@@ -111,11 +112,14 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       
       if (data && data.length > 0) {
         const active = data[0];
+        console.log(`✅ [Posto ${canal}] Turno ativo encontrado:`, active.id, `(Letra: ${active.letra})`);
         setActiveTurnoId(active.id);
         onTurnoChange(active.letra);
         return active.id;
       } else {
+        console.log(`⚠️ [Posto ${canal}] Nenhum turno ativo encontrado.`);
         setActiveTurnoId(null);
+        onTurnoChange(null);
       }
     } catch (err: any) {
       console.error('Erro ao buscar turno ativo:', err);
@@ -128,9 +132,10 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       setLoading(false);
     }
     return null;
-  }, [onTurnoChange]);
+  }, [canal, onTurnoChange]);
 
   const fetchPresence = useCallback(async (turnoId: string) => {
+    console.log(`🔍 [Posto ${canal}] Buscando efetivo para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -146,13 +151,15 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           presenceMap[p.agente_id] = { presente: p.presente, jornada: p.jornada };
         });
         setPresence(presenceMap);
+        console.log(`✅ [Posto ${canal}] Efetivo atualizado:`, Object.keys(presenceMap).length, 'agentes');
       }
     } catch (err) {
       console.error('Erro ao buscar efetivo:', err);
     }
-  }, []);
+  }, [canal]);
 
   const fetchOcorrencias = useCallback(async (turnoId: string) => {
+    console.log(`🔍 [Posto ${canal}] Buscando ocorrências para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -176,6 +183,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           imagem_url: o.imagem_url,
           apacs: o.apacs
         })));
+        console.log(`✅ [Posto ${canal}] Ocorrências atualizadas:`, data.length);
       }
     } catch (err) {
       console.error('Erro ao buscar ocorrências:', err);
@@ -183,21 +191,27 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, [canal]);
 
   const fetchEquipamentos = useCallback(async (turnoId: string) => {
+    console.log(`🔍 [Posto ${canal}] Buscando equipamentos para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
         .from('equipamentos')
         .select('*')
-        .eq('turno_id', turnoId);
+        .eq('turno_id', turnoId)
+        .eq('local', CANAL_CONFIG[canal]?.name || '');
 
       if (error) throw error;
-      if (data) setEquipamentos(data);
+      if (data) {
+        setEquipamentos(data);
+        console.log(`✅ [Posto ${canal}] Equipamentos atualizados:`, data.length);
+      }
     } catch (err) {
       console.error('Erro ao buscar equipamentos:', err);
     }
-  }, []);
+  }, [canal]);
 
   const fetchPaxFlow = useCallback(async (turnoId: string) => {
+    console.log(`🔍 [Posto ${canal}] Buscando fluxo de passageiros para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -207,13 +221,17 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .maybeSingle();
 
       if (error) throw error;
-      if (data) setPaxFlow(data);
+      if (data) {
+        setPaxFlow(data);
+        console.log(`✅ [Posto ${canal}] Fluxo de passageiros atualizado`);
+      }
     } catch (err) {
       console.error('Erro ao buscar fluxo de passageiros:', err);
     }
-  }, []);
+  }, [canal]);
 
   const fetchVoos = useCallback(async (turnoId: string) => {
+    console.log(`🔍 [Posto ${canal}] Buscando voos para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -222,11 +240,14 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .eq('turno_id', turnoId);
 
       if (error) throw error;
-      if (data) setVoos(data);
+      if (data) {
+        setVoos(data);
+        console.log(`✅ [Posto ${canal}] Voos atualizados:`, data.length);
+      }
     } catch (err) {
       console.error('Erro ao buscar voos:', err);
     }
-  }, []);
+  }, [canal]);
 
   // 1. Monitorar turnos (Abertura/Fechamento pelo Supervisor)
   useEffect(() => {
@@ -275,10 +296,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         });
 
       pollInterval = setInterval(() => {
-        console.log('🔄 [Posto] Sincronização de Segurança...');
+        console.log('🔄 [Posto] Sincronização de Segurança (Fallback)...');
         fetchPresence(activeTurnoId);
         fetchOcorrencias(activeTurnoId);
-      }, 15000);
+        fetchEquipamentos(activeTurnoId);
+        fetchPaxFlow(activeTurnoId);
+        fetchVoos(activeTurnoId);
+      }, 20000);
     };
 
     loadData();
@@ -391,7 +415,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   };
 
-  const handleSaveEquipamento = async () => {
+  const handleSaveEquipamento = useCallback(async () => {
     if (!activeTurnoId || !novoEquipamento.tipo || !novoEquipamento.descricao) {
       alert('Por favor, preencha o tipo e a descrição do defeito.');
       return;
@@ -430,9 +454,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       console.error('Erro ao salvar equipamento:', err);
       alert('Erro ao salvar equipamento no banco de dados: ' + (err.message || 'Erro desconhecido'));
     }
-  };
+  }, [activeTurnoId, canal, novoEquipamento]);
 
-  const handleSavePaxFlow = async () => {
+  const handleSavePaxFlow = useCallback(async () => {
     if (!activeTurnoId) return;
     setIsSavingPax(true);
 
@@ -459,9 +483,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     } finally {
       setIsSavingPax(false);
     }
-  };
+  }, [activeTurnoId, paxFlow]);
 
-  const handleSaveVoo = async () => {
+  const handleSaveVoo = useCallback(async () => {
     if (!activeTurnoId || !novoVoo.numero || !novoVoo.horario) {
       alert('Por favor, preencha o número do voo e o horário.');
       return;
@@ -505,7 +529,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     } finally {
       setIsSavingVoo(false);
     }
-  };
+  }, [activeTurnoId, novoVoo]);
 
   const handleEditOcorrencia = (o: Ocorrencia) => {
     setEditingOcorrencia({ ...o });

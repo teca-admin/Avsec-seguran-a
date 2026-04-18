@@ -271,14 +271,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(activeTurnoId))
         .subscribe();
 
-      // Fallback de sincronização a cada 60s caso o Realtime falhe
       pollInterval = setInterval(() => {
         fetchPresence(activeTurnoId);
         fetchOcorrencias(activeTurnoId);
         fetchEquipamentos(activeTurnoId);
         fetchPaxFlow(activeTurnoId);
         fetchVoos(activeTurnoId);
-      }, 60000);
+      }, 10000);
     };
 
     loadData();

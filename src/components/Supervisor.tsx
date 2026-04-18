@@ -305,12 +305,11 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
             .subscribe();
 
-          // Fallback de sincronização a cada 60s caso o Realtime falhe
           pollInterval = setInterval(() => {
             buscarEfetivo(turnoId);
             buscarOcorrencias(turnoId);
             buscarDadosAdicionais(turnoId);
-          }, 60000);
+          }, 10000);
         }
       } catch (err) {
         console.error('Erro na inicialização do Supervisor:', err);

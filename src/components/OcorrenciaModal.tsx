@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Canal } from '../constants';
 import { OcorrenciaTipo } from '../types';
 import { cn } from '../lib/utils';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
+import { uploadImagem } from '../lib/storage';
 
 interface OcorrenciaModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
   const [agentesEnvolvidos, setAgentesEnvolvidos] = useState<string[]>([]);
   const [searchAgente, setSearchAgente] = useState('');
   const [imagem, setImagem] = useState<string | null>(null);
+  const [uploadingImagem, setUploadingImagem] = useState(false);
 
   // GPA/GDAF specific
   const [passageiroNome, setPassageiroNome] = useState('');
@@ -80,9 +82,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
   if (!isOpen) return null;
 
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-  const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+  const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -98,11 +100,16 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagem(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setUploadingImagem(true);
+    try {
+      const url = await uploadImagem(file, 'ocorrencias');
+      setImagem(url);
+    } catch {
+      alert('Erro ao fazer upload da imagem. Verifique sua conexão e tente novamente.');
+      e.target.value = '';
+    } finally {
+      setUploadingImagem(false);
+    }
   };
 
   const handleSave = () => {
@@ -333,17 +340,23 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                   </div>
                   <div>
                     <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Foto da Varredura</label>
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       accept="image/*"
                       capture="environment"
                       onChange={handleImageChange}
+                      disabled={uploadingImagem}
                       className="form-input text-xs"
                     />
-                    {imagem && (
+                    {uploadingImagem && (
+                      <div className="flex items-center gap-2 mt-2 text-xs text-muted">
+                        <Loader2 size={12} className="animate-spin" /> Enviando imagem...
+                      </div>
+                    )}
+                    {imagem && !uploadingImagem && (
                       <div className="mt-2 relative w-24 h-24 border border-border rounded overflow-hidden">
                         <img src={imagem} alt="Preview" className="w-full h-full object-cover" />
-                        <button 
+                        <button
                           onClick={() => setImagem(null)}
                           className="absolute top-0 right-0 bg-black/50 text-white p-0.5"
                         >
@@ -472,16 +485,22 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                      tipo === 'varredura' ? 'Foto da Varredura' : 
                      'Foto da Ocorrência'}
                   </label>
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     accept="image/*"
                     onChange={handleImageChange}
+                    disabled={uploadingImagem}
                     className="form-input text-xs"
                   />
-                  {imagem && (
+                  {uploadingImagem && (
+                    <div className="flex items-center gap-2 mt-2 text-xs text-muted">
+                      <Loader2 size={12} className="animate-spin" /> Enviando imagem...
+                    </div>
+                  )}
+                  {imagem && !uploadingImagem && (
                     <div className="mt-2 relative w-24 h-24 border border-border rounded overflow-hidden">
                       <img src={imagem} alt="Preview" className="w-full h-full object-cover" />
-                      <button 
+                      <button
                         onClick={() => setImagem(null)}
                         className="absolute top-0 right-0 bg-black/50 text-white p-0.5"
                       >

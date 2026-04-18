@@ -5,6 +5,7 @@ import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X } from
 import OcorrenciaModal from './OcorrenciaModal';
 import { Ocorrencia, Turno, OcorrenciaTipo } from '../types';
 import { supabase } from '../lib/supabase';
+import { uploadImagem } from '../lib/storage';
 
 interface PostoProps {
   canal: Canal;
@@ -1061,16 +1062,17 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                 <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Foto do Fluxo 1</label>
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       accept="image/*"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => setPaxFlow(prev => ({ ...prev, img1: reader.result as string }));
-                          reader.readAsDataURL(file);
-                        }
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) { alert('Arquivo muito grande. Máximo 5MB.'); e.target.value = ''; return; }
+                        try {
+                          const url = await uploadImagem(file, 'fluxo-passageiros');
+                          setPaxFlow(prev => ({ ...prev, img1: url }));
+                        } catch { alert('Erro ao enviar imagem. Tente novamente.'); e.target.value = ''; }
                       }}
                       className="form-input text-xs"
                     />
@@ -1085,16 +1087,17 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] uppercase font-mono text-muted font-bold tracking-wider">Foto do Fluxo 2</label>
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       accept="image/*"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => setPaxFlow(prev => ({ ...prev, img2: reader.result as string }));
-                          reader.readAsDataURL(file);
-                        }
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) { alert('Arquivo muito grande. Máximo 5MB.'); e.target.value = ''; return; }
+                        try {
+                          const url = await uploadImagem(file, 'fluxo-passageiros');
+                          setPaxFlow(prev => ({ ...prev, img2: url }));
+                        } catch { alert('Erro ao enviar imagem. Tente novamente.'); e.target.value = ''; }
                       }}
                       className="form-input text-xs"
                     />

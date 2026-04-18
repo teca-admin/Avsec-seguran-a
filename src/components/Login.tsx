@@ -85,52 +85,31 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#F9FAFB] relative">
-      <div className="absolute top-6 left-6">
-        <img 
-          src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g" 
-          alt="WFS Logo" 
-          className="h-28 w-auto object-contain"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-      <div className="w-full max-w-[380px]">
-        <div className="mb-10 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              {/* Background stylized aviation paths */}
-              <svg viewBox="0 0 100 100" className="absolute -inset-10 w-40 h-40 text-accent/10 fill-none stroke-current stroke-[0.5] pointer-events-none">
-                <path d="M20,50 Q50,20 80,50" />
-                <path d="M20,60 Q50,30 80,60" />
-                <circle cx="50" cy="50" r="40" strokeDasharray="2 4" />
-              </svg>
-              
-              <div className="relative w-20 h-20 bg-accent rounded-2xl flex items-center justify-center shadow-2xl shadow-accent/30">
-                <svg viewBox="0 0 24 24" className="w-12 h-12 text-white fill-current">
-                  {/* Elegant Shield */}
-                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
-                  {/* Airplane Silhouette (Negative Space) */}
-                  <path 
-                    d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L14 19v-5.5l8 2.5z" 
-                    className="text-accent fill-current"
-                    transform="scale(0.55) translate(10, 10)"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-          <div className="font-mono text-[22px] text-accent tracking-[0.15em] uppercase mb-1 font-bold">WFS · AVSEC</div>
-          <div className="text-[10px] text-hint font-mono uppercase tracking-[0.3em] opacity-70">Sistema de Gerenciamento de Segurança</div>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-white">
+      <div className="w-full max-w-[360px]">
+
+        {/* Header */}
+        <div className="text-center mb-10">
+          <h1 className="text-[52px] font-bold tracking-widest text-gray-900 leading-none">
+            L.E.O
+          </h1>
+          <div className="w-full h-px bg-gray-900 mt-3 mb-3" />
+          <p className="text-[11px] text-gray-500 tracking-[0.25em] uppercase">
+            Livro Eletrônico de Ocorrência
+          </p>
         </div>
 
-        <div className="card shadow-2xl shadow-black/10">
-          <form onSubmit={handleLogin} className="space-y-4">
+        {/* Card */}
+        <div className="border border-gray-200 rounded-sm p-7 shadow-sm bg-white">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Usuário (canal)</label>
-              <select 
-                value={user} 
+              <label className="block text-[10px] text-gray-500 font-semibold uppercase tracking-widest mb-2">
+                Usuário (Canal)
+              </label>
+              <select
+                value={user}
                 onChange={(e) => setUser(e.target.value as Canal)}
-                className="form-input"
+                className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:border-gray-900 transition-colors"
               >
                 <option value="">Selecione o canal...</option>
                 <option value="alfa">CANAL ALFA – Internacional</option>
@@ -142,30 +121,30 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
 
             <div>
-              <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Senha</label>
-              <input 
+              <label className="block text-[10px] text-gray-500 font-semibold uppercase tracking-widest mb-2">
+                Senha
+              </label>
+              <input
                 type="password"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
                 placeholder="••••••"
                 maxLength={64}
                 autoComplete="current-password"
-                className="form-input"
+                className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:border-gray-900 transition-colors"
               />
             </div>
 
             {error && (
-              <div className="p-2.5 bg-red-500/15 border border-red-500/30 rounded text-red-400 text-sm">
-                {error}
-              </div>
+              <p className="text-xs text-red-600 text-center">{error}</p>
             )}
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
-              className="btn btn-primary w-full justify-center mt-2 border border-[#f6f6f6] gap-2"
+              className="w-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold tracking-widest uppercase py-3 rounded-sm transition-colors flex items-center justify-center gap-2 mt-2"
             >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : 'Entrar'}
+              {loading ? <Loader2 className="animate-spin" size={16} /> : 'Entrar'}
             </button>
           </form>
         </div>

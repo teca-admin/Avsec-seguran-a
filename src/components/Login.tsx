@@ -92,7 +92,7 @@ export default function Login({ onLogin }: LoginProps) {
         <img
           src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g"
           alt="WFS Logo"
-          className="h-16 w-auto object-contain"
+          className="h-[70px] w-auto object-contain"
           referrerPolicy="no-referrer"
         />
       </div>
@@ -105,7 +105,7 @@ export default function Login({ onLogin }: LoginProps) {
           <h1 className="text-[44px] font-bold tracking-widest text-gray-900 leading-none">
             L.E.O
           </h1>
-          <div className="w-full h-px bg-gray-900 mt-3 mb-3" />
+          <div className="w-48 h-px bg-gray-900 mt-3 mb-3 mx-auto" />
           <p className="text-[12px] text-gray-500 tracking-[0.2em]">
             Livro Eletrônico de Ocorrência
           </p>

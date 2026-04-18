@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Canal, CANAL_CONFIG } from '../constants';
+import React, { useState, useRef } from 'react';
+import { Canal } from '../constants';
 import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 5 * 60 * 1000;
 
 interface LoginProps {
   onLogin: (user: Canal) => void;
@@ -12,58 +15,73 @@ export default function Login({ onLogin }: LoginProps) {
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dbPasswords, setDbPasswords] = useState<Record<string, string>>({
-    alfa: 'alfa123',
-    bravo: 'bravo123',
-    charlie: 'charlie123',
-    fox: 'fox123',
-    supervisor: 'super123',
-  });
+  const attemptsRef = useRef(0);
+  const lockoutUntilRef = useRef(0);
 
-  useEffect(() => {
-    const fetchPasswords = async () => {
-      try {
-        const { data, error } = await supabase
-          .schema('seguranca')
-          .from('senhas_canais')
-          .select('*');
-        
-        if (!error && data) {
-          const newPasswords: Record<string, string> = {};
-          data.forEach((s: any) => {
-            newPasswords[s.canal] = s.senha;
-          });
-          if (Object.keys(newPasswords).length > 0) {
-            setDbPasswords(prev => ({ ...prev, ...newPasswords }));
-          }
-        }
-      } catch (err) {
-        console.error('Erro ao buscar senhas:', err);
-      }
-    };
-
-    fetchPasswords();
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!user) {
       setError('Selecione um canal.');
       return;
     }
-    
+
+    const now = Date.now();
+    if (now < lockoutUntilRef.current) {
+      const remaining = Math.ceil((lockoutUntilRef.current - now) / 1000 / 60);
+      setError(`Muitas tentativas. Aguarde ${remaining} minuto(s) e tente novamente.`);
+      return;
+    }
+
+    if (!pass || pass.length < 3 || pass.length > 64) {
+      setError('Senha inválida.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
-    // Pequeno delay para feedback visual
-    setTimeout(() => {
-      if (dbPasswords[user] !== pass) {
-        setError('Senha incorreta.');
-        setLoading(false);
+    try {
+      const { data, error: dbError } = await supabase
+        .schema('seguranca')
+        .from('senhas_canais')
+        .select('senha')
+        .eq('canal', user)
+        .single();
+
+      if (dbError || !data) {
+        attemptsRef.current += 1;
+        if (attemptsRef.current >= MAX_ATTEMPTS) {
+          lockoutUntilRef.current = Date.now() + LOCKOUT_DURATION_MS;
+          attemptsRef.current = 0;
+          setError('Muitas tentativas incorretas. Acesso bloqueado por 5 minutos.');
+        } else {
+          setError('Credenciais inválidas.');
+        }
+        setPass('');
         return;
       }
+
+      if (data.senha !== pass) {
+        attemptsRef.current += 1;
+        if (attemptsRef.current >= MAX_ATTEMPTS) {
+          lockoutUntilRef.current = Date.now() + LOCKOUT_DURATION_MS;
+          attemptsRef.current = 0;
+          setError('Muitas tentativas incorretas. Acesso bloqueado por 5 minutos.');
+        } else {
+          setError('Credenciais inválidas.');
+        }
+        setPass('');
+        return;
+      }
+
+      attemptsRef.current = 0;
       onLogin(user as Canal);
-    }, 500);
+    } catch {
+      setError('Erro ao conectar. Verifique sua conexão e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -126,10 +144,12 @@ export default function Login({ onLogin }: LoginProps) {
             <div>
               <label className="block text-[11px] text-muted font-mono uppercase tracking-wider mb-1.5">Senha</label>
               <input 
-                type="password" 
+                type="password"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
                 placeholder="••••••"
+                maxLength={64}
+                autoComplete="current-password"
                 className="form-input"
               />
             </div>

@@ -90,7 +90,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, []);
 
   const fetchActiveTurno = useCallback(async () => {
-    console.log(`🔍 [Posto ${canal}] Buscando turno ativo...`);
     try {
       setLoading(true);
       setError(null);
@@ -109,20 +108,17 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         }
         throw error;
       }
-      
+
       if (data && data.length > 0) {
         const active = data[0];
-        console.log(`✅ [Posto ${canal}] Turno ativo encontrado:`, active.id, `(Letra: ${active.letra})`);
         setActiveTurnoId(active.id);
         onTurnoChange(active.letra);
         return active.id;
       } else {
-        console.log(`⚠️ [Posto ${canal}] Nenhum turno ativo encontrado.`);
         setActiveTurnoId(null);
         onTurnoChange(null);
       }
     } catch (err: any) {
-      console.error('Erro ao buscar turno ativo:', err);
       if (err.code === '42501') {
         setError('Erro de Permissão (42501): O banco de dados recusou o acesso ao schema "seguranca". Verifique os GRANTS no SQL Editor.');
       } else {
@@ -135,7 +131,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, [canal, onTurnoChange]);
 
   const fetchPresence = useCallback(async (turnoId: string) => {
-    console.log(`🔍 [Posto ${canal}] Buscando efetivo para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -151,7 +146,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           presenceMap[p.agente_id] = { presente: p.presente, jornada: p.jornada };
         });
         setPresence(presenceMap);
-        console.log(`✅ [Posto ${canal}] Efetivo atualizado:`, Object.keys(presenceMap).length, 'agentes');
       }
     } catch (err) {
       console.error('Erro ao buscar efetivo:', err);
@@ -159,7 +153,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, [canal]);
 
   const fetchOcorrencias = useCallback(async (turnoId: string) => {
-    console.log(`🔍 [Posto ${canal}] Buscando ocorrências para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -183,7 +176,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           imagem_url: o.imagem_url,
           apacs: o.apacs
         })));
-        console.log(`✅ [Posto ${canal}] Ocorrências atualizadas:`, data.length);
       }
     } catch (err) {
       console.error('Erro ao buscar ocorrências:', err);
@@ -191,7 +183,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, [canal]);
 
   const fetchEquipamentos = useCallback(async (turnoId: string) => {
-    console.log(`🔍 [Posto ${canal}] Buscando equipamentos para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -201,17 +192,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .eq('local', CANAL_CONFIG[canal]?.name || '');
 
       if (error) throw error;
-      if (data) {
-        setEquipamentos(data);
-        console.log(`✅ [Posto ${canal}] Equipamentos atualizados:`, data.length);
-      }
+      if (data) setEquipamentos(data);
     } catch (err) {
       console.error('Erro ao buscar equipamentos:', err);
     }
   }, [canal]);
 
   const fetchPaxFlow = useCallback(async (turnoId: string) => {
-    console.log(`🔍 [Posto ${canal}] Buscando fluxo de passageiros para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -221,17 +208,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .maybeSingle();
 
       if (error) throw error;
-      if (data) {
-        setPaxFlow(data);
-        console.log(`✅ [Posto ${canal}] Fluxo de passageiros atualizado`);
-      }
+      if (data) setPaxFlow(data);
     } catch (err) {
       console.error('Erro ao buscar fluxo de passageiros:', err);
     }
   }, [canal]);
 
   const fetchVoos = useCallback(async (turnoId: string) => {
-    console.log(`🔍 [Posto ${canal}] Buscando voos para turno:`, turnoId);
     try {
       const { data, error } = await supabase
         .schema('seguranca')
@@ -240,10 +223,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .eq('turno_id', turnoId);
 
       if (error) throw error;
-      if (data) {
-        setVoos(data);
-        console.log(`✅ [Posto ${canal}] Voos atualizados:`, data.length);
-      }
+      if (data) setVoos(data);
     } catch (err) {
       console.error('Erro ao buscar voos:', err);
     }
@@ -257,7 +237,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     const turnoChannel = supabase
       .channel('posto-turno-monitor')
       .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'turnos' }, () => {
-        console.log('🔔 [Posto] Mudança detectada na tabela de turnos. Atualizando...');
         fetchActiveTurno();
       })
       .subscribe();
@@ -283,7 +262,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         fetchVoos(activeTurnoId)
       ]);
 
-      console.log(`🚀 [Posto ${canal}] Ativando Sincronização Instantânea...`);
       channel = supabase
         .channel(`posto-realtime-${canal}`)
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => fetchOcorrencias(activeTurnoId))
@@ -291,18 +269,16 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => fetchEquipamentos(activeTurnoId))
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => fetchPaxFlow(activeTurnoId))
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(activeTurnoId))
-        .subscribe((status) => {
-          console.log(`📡 [Posto ${canal}] Status:`, status);
-        });
+        .subscribe();
 
+      // Fallback de sincronização a cada 60s caso o Realtime falhe
       pollInterval = setInterval(() => {
-        console.log('🔄 [Posto] Sincronização de Segurança (Fallback)...');
         fetchPresence(activeTurnoId);
         fetchOcorrencias(activeTurnoId);
         fetchEquipamentos(activeTurnoId);
         fetchPaxFlow(activeTurnoId);
         fetchVoos(activeTurnoId);
-      }, 20000);
+      }, 60000);
     };
 
     loadData();
@@ -322,7 +298,6 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   }, [allAgentes, searchTerm]);
 
   const togglePresence = async (mat: string, jornadaValue?: string) => {
-    console.log('Toggling presence for:', mat, 'Active Turno ID:', activeTurnoId, 'Jornada:', jornadaValue);
     if (!activeTurnoId) {
       alert('Nenhum turno ativo encontrado. Por favor, recarregue a página ou aguarde a sincronização.');
       return;
@@ -330,8 +305,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     
     const isCurrentlyPresent = presence[mat]?.presente;
     const newState = !isCurrentlyPresent;
-    
-    console.log('New presence state:', newState);
+
     setPresence(prev => ({ 
       ...prev, 
       [mat]: { presente: newState, jornada: jornadaValue || prev[mat]?.jornada } 
@@ -350,11 +324,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
           registrado_em: new Date().toISOString()
         }, { onConflict: 'turno_id,agente_id' });
 
-      if (error) {
-        console.error('Supabase error updating presence:', error);
-        throw error;
-      }
-      console.log('Presence updated successfully in Supabase');
+      if (error) throw error;
     } catch (err: any) {
       console.error('Erro ao atualizar presença:', err);
       alert('Erro ao salvar presença no banco de dados: ' + (err.message || 'Erro desconhecido'));

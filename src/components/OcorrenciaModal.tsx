@@ -79,15 +79,30 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
 
   if (!isOpen) return null;
 
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagem(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      alert('Tipo de arquivo não permitido. Use apenas JPEG, PNG, WebP ou GIF.');
+      e.target.value = '';
+      return;
     }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      alert('Arquivo muito grande. O tamanho máximo permitido é 5MB.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagem(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = () => {

@@ -296,8 +296,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
             buscarDadosAdicionais(turnoId)
           ]);
 
-          // Subscribe to Realtime - Canal Único de Alta Prioridade
-          console.log('🚀 [Supervisor] Ativando Sincronização Instantânea...');
           channel = supabase
             .channel('supervisor-realtime')
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
@@ -305,20 +303,14 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
-            .subscribe((status) => {
-              console.log('📡 [Supervisor] Status:', status);
-              if (status === 'CHANNEL_ERROR') {
-                console.error('❌ Erro de Conexão: Verifique se o esquema "seguranca" está em "Exposed Schemas" nas configurações de API do Supabase.');
-              }
-            });
+            .subscribe();
 
-          // Fallback: Sincronização de Segurança (Polling) a cada 15s
+          // Fallback de sincronização a cada 60s caso o Realtime falhe
           pollInterval = setInterval(() => {
-            console.log('🔄 [Supervisor] Sincronização de Segurança...');
             buscarEfetivo(turnoId);
             buscarOcorrencias(turnoId);
             buscarDadosAdicionais(turnoId);
-          }, 15000);
+          }, 60000);
         }
       } catch (err) {
         console.error('Erro na inicialização do Supervisor:', err);
@@ -523,8 +515,6 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (!pdfBase64 || pdfBase64.length < 100) {
         throw new Error('Falha ao gerar o conteúdo do PDF. O arquivo gerado está vazio.');
       }
-
-      console.log('📄 PDF gerado com sucesso, tamanho:', pdfBase64.length);
 
       const now = new Date();
       const hour = now.getHours();

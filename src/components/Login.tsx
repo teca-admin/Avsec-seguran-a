@@ -85,71 +85,81 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-white">
-      <div className="w-full max-w-[360px]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#F2F2F2] relative">
 
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-[52px] font-bold tracking-widest text-gray-900 leading-none">
+      {/* Logo WFS canto superior esquerdo */}
+      <div className="absolute top-6 left-6">
+        <img
+          src="https://lh3.googleusercontent.com/d/1sNzDKhdh2zH8d8DoyqIjx8l5LzBEXN5g"
+          alt="WFS Logo"
+          className="h-16 w-auto object-contain"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+
+      {/* Card único com título + formulário */}
+      <div className="w-full max-w-[400px] bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+
+        {/* Título dentro do card */}
+        <div className="text-center mb-7">
+          <h1 className="text-[44px] font-bold tracking-widest text-gray-900 leading-none">
             L.E.O
           </h1>
           <div className="w-full h-px bg-gray-900 mt-3 mb-3" />
-          <p className="text-[11px] text-gray-500 tracking-[0.25em] uppercase">
+          <p className="text-[12px] text-gray-500 tracking-[0.2em]">
             Livro Eletrônico de Ocorrência
           </p>
         </div>
 
-        {/* Card */}
-        <div className="border border-gray-200 rounded-sm p-7 shadow-sm bg-white">
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-[10px] text-gray-500 font-semibold uppercase tracking-widest mb-2">
-                Usuário (Canal)
-              </label>
-              <select
-                value={user}
-                onChange={(e) => setUser(e.target.value as Canal)}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:border-gray-900 transition-colors"
-              >
-                <option value="">Selecione o canal...</option>
-                <option value="alfa">CANAL ALFA – Internacional</option>
-                <option value="bravo">CANAL BRAVO – Doméstico TPS</option>
-                <option value="charlie">CANAL CHARLIE – Funcionários/Tripulantes TPS</option>
-                <option value="fox">CANAL FOX – TECA</option>
-                <option value="supervisor">SUPERVISOR AVSEC</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] text-gray-500 font-semibold uppercase tracking-widest mb-2">
-                Senha
-              </label>
-              <input
-                type="password"
-                value={pass}
-                onChange={(e) => setPass(e.target.value)}
-                placeholder="••••••"
-                maxLength={64}
-                autoComplete="current-password"
-                className="w-full border border-gray-300 rounded-sm px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:border-gray-900 transition-colors"
-              />
-            </div>
-
-            {error && (
-              <p className="text-xs text-red-600 text-center">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold tracking-widest uppercase py-3 rounded-sm transition-colors flex items-center justify-center gap-2 mt-2"
+        {/* Formulário */}
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div>
+            <label className="block text-[10px] text-gray-500 font-semibold uppercase tracking-widest mb-2">
+              Usuário (Canal)
+            </label>
+            <select
+              value={user}
+              onChange={(e) => setUser(e.target.value as Canal)}
+              className="w-full border border-gray-300 rounded px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:border-gray-900 transition-colors"
             >
-              {loading ? <Loader2 className="animate-spin" size={16} /> : 'Entrar'}
-            </button>
-          </form>
-        </div>
+              <option value="">Selecione o canal...</option>
+              <option value="alfa">CANAL ALFA – Internacional</option>
+              <option value="bravo">CANAL BRAVO – Doméstico TPS</option>
+              <option value="charlie">CANAL CHARLIE – Funcionários/Tripulantes TPS</option>
+              <option value="fox">CANAL FOX – TECA</option>
+              <option value="supervisor">SUPERVISOR AVSEC</option>
+            </select>
+          </div>
 
+          <div>
+            <label className="block text-[10px] text-gray-500 font-semibold uppercase tracking-widest mb-2">
+              Senha
+            </label>
+            <input
+              type="password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              placeholder="••••••"
+              maxLength={64}
+              autoComplete="current-password"
+              className="w-full border border-gray-300 rounded px-3 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:border-gray-900 transition-colors"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-600 text-center">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold tracking-widest uppercase py-3 rounded transition-colors flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="animate-spin" size={16} /> : 'Entrar'}
+          </button>
+        </form>
       </div>
+
     </div>
   );
 }

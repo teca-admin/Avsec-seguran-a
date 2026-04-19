@@ -39,6 +39,9 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [isEditVooModalOpen, setIsEditVooModalOpen] = useState(false);
   const [isEditPaxModalOpen, setIsEditPaxModalOpen] = useState(false);
   const [editingPaxFlow, setEditingPaxFlow] = useState<any | null>(null);
+  const [canalResponsaveis, setCanalResponsaveis] = useState<Record<Canal, string | null>>({
+    alfa: null, bravo: null, charlie: null, fox: null, supervisor: null
+  });
 
   const fetchAgentes = useCallback(async () => {
     try {
@@ -52,6 +55,23 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (data) setAllAgentes(data);
     } catch (err) {
       console.error('Erro ao buscar agentes:', err);
+    }
+  }, []);
+
+  const buscarResponsaveis = useCallback(async (turnoId: string) => {
+    try {
+      const { data } = await supabase
+        .schema('seguranca')
+        .from('canal_responsavel')
+        .select('canal, agente_id')
+        .eq('turno_id', turnoId);
+      if (data) {
+        const map: Record<Canal, string | null> = { alfa: null, bravo: null, charlie: null, fox: null, supervisor: null };
+        data.forEach((r: any) => { if (r.canal in map) map[r.canal as Canal] = r.agente_id; });
+        setCanalResponsaveis(map);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar responsáveis:', err);
     }
   }, []);
 
@@ -293,7 +313,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           await Promise.all([
             buscarEfetivo(turnoId),
             buscarOcorrencias(turnoId),
-            buscarDadosAdicionais(turnoId)
+            buscarDadosAdicionais(turnoId),
+            buscarResponsaveis(turnoId)
           ]);
 
           channel = supabase
@@ -303,12 +324,14 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
             .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
+            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'canal_responsavel' }, () => buscarResponsaveis(turnoId))
             .subscribe();
 
           pollInterval = setInterval(() => {
             buscarEfetivo(turnoId);
             buscarOcorrencias(turnoId);
             buscarDadosAdicionais(turnoId);
+            buscarResponsaveis(turnoId);
           }, 10000);
         }
       } catch (err) {
@@ -324,7 +347,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (pollInterval) clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais]);
+  }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis]);
 
   const handlePrint = () => {
     window.print();
@@ -632,6 +655,9 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
     );
   }
 
+  const [agentesCount] = [Object.values(presence).reduce((acc: number, curr: Record<string, any>) =>
+    acc + Object.values(curr).filter((v: any) => v.presente).length, 0)];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
@@ -652,7 +678,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="card p-4">
           <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5">Agentes em serviço</div>
           <div className="text-2xl font-semibold font-mono text-text">
-            {Object.values(presence).reduce((acc: number, curr: Record<string, boolean>) => acc + Object.values(curr).filter(Boolean).length, 0)}
+            {agentesCount}
           </div>
           <div className="text-[11px] text-muted mt-0.5">confirmados presentes</div>
         </div>
@@ -681,10 +707,13 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map((c) => {
           const config = CANAL_CONFIG[c];
-          // Filter presence based on EFETIVO_BASE for this canal
-          const channelAgents = Object.keys(presence[c] || {});
-          const count = channelAgents.filter(id => presence[c][id]).length;
+          const channelAgentPresence = presence[c] || {};
+          const presentAgentIds = Object.keys(channelAgentPresence).filter(id => channelAgentPresence[id]?.presente);
+          const count = presentAgentIds.length;
+          const intermediarios = presentAgentIds.filter(id => channelAgentPresence[id]?.jornada === 'intermediário');
           const channelOcorrencias = ocorrencias.filter(o => o.canal === c).length;
+          const responsavelId = canalResponsaveis[c];
+          const responsavelAgente = responsavelId ? allAgentes.find(a => a.matricula === responsavelId) : null;
           
           return (
             <div key={c} className="card p-4">
@@ -700,6 +729,19 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
               </div>
               <div className="text-2xl font-semibold font-mono mb-0.5 text-text">{count}</div>
               <div className="text-[11px] text-muted">agentes presentes</div>
+              {intermediarios.length > 0 && (
+                <div className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
+                  <span>⇄</span>
+                  <span>{intermediarios.length} intermediário{intermediarios.length > 1 ? 's' : ''} (2 turnos)</span>
+                </div>
+              )}
+              {responsavelAgente && (
+                <div className="mt-2 pt-2 border-t border-border-2 flex items-center gap-1.5">
+                  <Users size={10} className="text-muted shrink-0" />
+                  <span className="text-[10px] text-muted">Resp:</span>
+                  <span className="text-[10px] font-medium truncate">{responsavelAgente.nome}</span>
+                </div>
+              )}
               <div className="text-[11px] text-muted mt-2 pt-2 border-t border-border-2">
                 {channelOcorrencias} ocorrências
               </div>
@@ -931,6 +973,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   equipamentos={equipamentos}
                   paxFlow={paxFlow}
                   voos={voos}
+                  canalResponsaveis={canalResponsaveis}
                 />
               </div>
             </div>

@@ -13,10 +13,11 @@ interface PdfReportProps {
   paxFlow?: PaxFlow;
   equipamentos?: EquipamentoDefeito[];
   voos?: VooInternacional[];
+  canalResponsaveis?: Record<Canal, string | null>;
 }
 
 export default function PdfReport({ 
-  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos 
+  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos, canalResponsaveis 
 }: PdfReportProps) {
   const t = TURNOS[turno];
 
@@ -346,6 +347,9 @@ export default function PdfReport({
           {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map(c => {
             const config = CANAL_CONFIG[c];
             const presentes = allAgentes.filter(a => presence[c]?.[a.matricula]?.presente);
+            const hasIntermediario = presentes.some(a => presence[c]?.[a.matricula]?.jornada === 'intermediário');
+            const responsavelId = canalResponsaveis?.[c];
+            const responsavelNome = responsavelId ? (allAgentes.find(a => a.matricula === responsavelId)?.nome || responsavelId) : null;
             
             if (presentes.length === 0) return null;
 
@@ -353,7 +357,12 @@ export default function PdfReport({
               <div key={c} style={{ marginBottom: '20px' }}>
                 <div className="channel-header">
                   <span>{config.name}</span>
-                  <span style={{ fontSize: '9px', fontWeight: 'normal' }}>Total: {presentes.length} agentes</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 'normal' }}>Total: {presentes.length} agentes</span>
+                    {responsavelNome && (
+                      <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ee2f24' }}>Respável: {responsavelNome}</span>
+                    )}
+                  </div>
                 </div>
                 
                 <table className="efetivo-table">
@@ -361,19 +370,30 @@ export default function PdfReport({
                     <tr>
                       <th style={{ width: '100px' }}>Matrícula</th>
                       <th>Nome Completo</th>
-                      <th style={{ width: '100px', textAlign: 'center' }}>Jornada</th>
+                      <th style={{ width: '120px', textAlign: 'center' }}>Jornada</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {presentes.map(a => (
-                      <tr key={a.matricula}>
-                        <td style={{ fontFamily: 'monospace' }}>{a.matricula}</td>
-                        <td>{a.nome}</td>
-                        <td style={{ fontFamily: 'monospace', textAlign: 'center' }}>{presence[c]?.[a.matricula]?.jornada || '—'}</td>
-                      </tr>
-                    ))}
+                    {presentes.map(a => {
+                      const jornada = presence[c]?.[a.matricula]?.jornada;
+                      const isInter = jornada === 'intermediário';
+                      return (
+                        <tr key={a.matricula} style={isInter ? { backgroundColor: '#fffbeb' } : {}}>
+                          <td style={{ fontFamily: 'monospace' }}>{a.matricula}</td>
+                          <td>{a.nome}</td>
+                          <td style={{ fontFamily: 'monospace', textAlign: 'center', color: isInter ? '#d97706' : undefined, fontWeight: isInter ? 'bold' : undefined }}>
+                            {isInter ? 'Intermediário *' : (jornada || '—')}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                {hasIntermediario && (
+                  <div style={{ fontSize: '9px', color: '#92400e', fontStyle: 'italic', marginTop: '4px', padding: '4px 8px', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fcd34d' }}>
+                    * <b>Agente Intermediário</b>: profissional em regime de duplo turno que permanece em serviço durante a transição entre turnos consecutivos.
+                  </div>
+                )}
               </div>
             );
           })}

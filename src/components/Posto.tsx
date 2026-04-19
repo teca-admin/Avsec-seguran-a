@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Canal, TURNOS, CANAL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
-import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X } from 'lucide-react';
+import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X, UserCheck } from 'lucide-react';
 import OcorrenciaModal from './OcorrenciaModal';
 import { Ocorrencia, Turno, OcorrenciaTipo } from '../types';
 import { supabase } from '../lib/supabase';
@@ -18,6 +18,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [allAgentes, setAllAgentes] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [presence, setPresence] = useState<Record<string, { presente: boolean, jornada?: string }>>({});
+  const [prevTurnoIntermediarios, setPrevTurnoIntermediarios] = useState<Record<string, { presente: boolean, jornada?: string }>>({});
   const [selectedAgentForJornada, setSelectedAgentForJornada] = useState<any | null>(null);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,6 +26,10 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTurnoId, setActiveTurnoId] = useState<string | null>(null);
+  // Responsável pelo canal
+  const [responsavelId, setResponsavelId] = useState<string | null>(null);
+  const [responsavelSearchTerm, setResponsavelSearchTerm] = useState('');
+  const [isSavingResponsavel, setIsSavingResponsavel] = useState(false);
 
   // Estados para Equipamentos
   const [equipamentos, setEquipamentos] = useState<any[]>([]);
@@ -116,8 +121,38 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         onTurnoChange(active.letra);
         return active.id;
       } else {
+        // Turno encerrado – buscar intermediários do último turno fechado
         setActiveTurnoId(null);
         onTurnoChange(null);
+        // Buscar o último turno fechado para manter intermediários visíveis
+        try {
+          const { data: lastTurno } = await supabase
+            .schema('seguranca')
+            .from('turnos')
+            .select('id')
+            .eq('canal', 'geral')
+            .not('fechado_em', 'is', null)
+            .order('fechado_em', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastTurno) {
+            const { data: interData } = await supabase
+              .schema('seguranca')
+              .from('efetivo_turno')
+              .select('agente_id, jornada')
+              .eq('turno_id', lastTurno.id)
+              .eq('canal', canal)
+              .eq('presente', true)
+              .eq('jornada', 'intermediário');
+            if (interData && interData.length > 0) {
+              const map: Record<string, { presente: boolean, jornada?: string }> = {};
+              interData.forEach((p: any) => { map[p.agente_id] = { presente: true, jornada: 'intermediário' }; });
+              setPrevTurnoIntermediarios(map);
+            } else {
+              setPrevTurnoIntermediarios({});
+            }
+          }
+        } catch { /* silencioso */ }
       }
     } catch (err: any) {
       if (err.code === '42501') {
@@ -182,6 +217,43 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       console.error('Erro ao buscar ocorrências:', err);
     }
   }, [canal]);
+
+  const fetchResponsavel = useCallback(async (turnoId: string) => {
+    try {
+      const { data } = await supabase
+        .schema('seguranca')
+        .from('canal_responsavel')
+        .select('agente_id')
+        .eq('turno_id', turnoId)
+        .eq('canal', canal)
+        .maybeSingle();
+      if (data) setResponsavelId(data.agente_id);
+      else setResponsavelId(null);
+    } catch (err) {
+      console.error('Erro ao buscar responsável:', err);
+    }
+  }, [canal]);
+
+  const handleSaveResponsavel = async (agenteId: string) => {
+    if (!activeTurnoId) return;
+    setIsSavingResponsavel(true);
+    try {
+      const { error } = await supabase
+        .schema('seguranca')
+        .from('canal_responsavel')
+        .upsert(
+          { turno_id: activeTurnoId, canal: canal, agente_id: agenteId, registrado_em: new Date().toISOString() },
+          { onConflict: 'turno_id,canal' }
+        );
+      if (error) throw error;
+      setResponsavelId(agenteId);
+      setResponsavelSearchTerm('');
+    } catch (err: any) {
+      alert('Erro ao salvar responsável: ' + err.message);
+    } finally {
+      setIsSavingResponsavel(false);
+    }
+  };
 
   const fetchEquipamentos = useCallback(async (turnoId: string) => {
     try {
@@ -260,7 +332,8 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         fetchOcorrencias(activeTurnoId),
         fetchEquipamentos(activeTurnoId),
         fetchPaxFlow(activeTurnoId),
-        fetchVoos(activeTurnoId)
+        fetchVoos(activeTurnoId),
+        fetchResponsavel(activeTurnoId)
       ]);
 
       channel = supabase
@@ -270,6 +343,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => fetchEquipamentos(activeTurnoId))
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => fetchPaxFlow(activeTurnoId))
         .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => fetchVoos(activeTurnoId))
+        .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'canal_responsavel' }, () => fetchResponsavel(activeTurnoId))
         .subscribe();
 
       pollInterval = setInterval(() => {
@@ -278,6 +352,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         fetchEquipamentos(activeTurnoId);
         fetchPaxFlow(activeTurnoId);
         fetchVoos(activeTurnoId);
+        fetchResponsavel(activeTurnoId);
       }, 10000);
     };
 
@@ -287,7 +362,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [activeTurnoId, canal, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos]);
+  }, [activeTurnoId, canal, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos, fetchResponsavel]);
 
   const filteredAgentes = useMemo(() => {
     if (!searchTerm) return allAgentes;
@@ -711,6 +786,72 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
 
       {activeTab === 'efetivo' && (
         <div className="space-y-4">
+
+          {/* Responsável pelo Canal */}
+          <div className="card p-3 border-border-2">
+            <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <UserCheck size={12} />
+              Responsável pelo Canal neste Turno
+            </div>
+            {responsavelId ? (() => {
+              const resp = allAgentes.find(a => a.matricula === responsavelId);
+              return (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-teal-500" />
+                    <span className="text-sm font-medium">{resp?.nome || responsavelId}</span>
+                    <span className="text-[10px] font-mono text-muted">{resp?.matricula}</span>
+                  </div>
+                  {activeTurnoId && (
+                    <button
+                      onClick={() => setResponsavelId(null)}
+                      className="text-[10px] text-muted hover:text-red-400 transition-colors"
+                    >
+                      Trocar
+                    </button>
+                  )}
+                </div>
+              );
+            })() : (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
+                <input
+                  type="text"
+                  placeholder={activeTurnoId ? 'Buscar responsável pelo canal...' : 'Sem turno ativo'}
+                  disabled={!activeTurnoId}
+                  className="w-full pl-9 pr-4 py-2 bg-surface-2 border border-border-2 rounded text-sm focus:outline-none focus:border-amber-500 transition-all disabled:opacity-50"
+                  value={responsavelSearchTerm}
+                  onChange={(e) => setResponsavelSearchTerm(e.target.value)}
+                />
+                {responsavelSearchTerm && (
+                  <div className="absolute z-[200] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-48 overflow-y-auto">
+                    {allAgentes
+                      .filter(a => {
+                        const term = responsavelSearchTerm.toLowerCase();
+                        return a.nome.toLowerCase().includes(term) || a.matricula.toLowerCase().includes(term);
+                      })
+                      .slice(0, 8)
+                      .map(a => (
+                        <div
+                          key={a.matricula}
+                          className="flex items-center gap-3 px-4 py-2 hover:bg-amber-500/10 cursor-pointer transition-colors border-b border-border last:border-0"
+                          onClick={() => handleSaveResponsavel(a.matricula)}
+                        >
+                          <UserCheck size={12} className="text-amber-500 shrink-0" />
+                          <div>
+                            <div className="text-sm font-medium">{a.nome}</div>
+                            <div className="text-[10px] text-muted font-mono">{a.matricula}</div>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Adicionar Agente */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
             <input
@@ -741,19 +882,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     const matA = a.matricula.toLowerCase();
                     const matB = b.matricula.toLowerCase();
 
-                    // Prioridade 1: Nome começa exatamente com o termo
                     const startsWithA = nomeA.startsWith(term);
                     const startsWithB = nomeB.startsWith(term);
                     if (startsWithA && !startsWithB) return -1;
                     if (!startsWithA && startsWithB) return 1;
 
-                    // Prioridade 2: Matrícula começa com o termo
                     const matStartsWithA = matA.startsWith(term);
                     const matStartsWithB = matB.startsWith(term);
                     if (matStartsWithA && !matStartsWithB) return -1;
                     if (!matStartsWithA && matStartsWithB) return 1;
 
-                    // Prioridade 3: Ordem alfabética normal
                     return a.nome.localeCompare(b.nome);
                   })
                   .map(a => (
@@ -782,6 +920,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                           >
                             06:00
                           </button>
+                          <button
+                            onClick={() => {
+                              togglePresence(a.matricula, 'intermediário');
+                              setSearchTerm('');
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-600 rounded hover:bg-amber-500 hover:text-white transition-all"
+                            title="Agente que trabalha em 2 turnos consecutivos"
+                          >
+                            Interm.
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -796,29 +944,70 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             <div className="grid gap-2">
               {allAgentes
                 .filter(a => presence[a.matricula]?.presente)
-                .map(a => (
-                  <div
-                    key={a.matricula}
-                    className="flex items-center gap-3 p-2.5 px-3.5 bg-teal-500/10 border border-teal-500/30 rounded transition-all"
-                  >
-                    <div className="w-4.5 h-4.5 rounded bg-teal-500 flex items-center justify-center text-white text-[10px]">
-                      ✓
-                    </div>
-                    <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.matricula}</div>
-                    <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
-                    <div className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-600 border border-teal-500/20">
-                      {presence[a.matricula]?.jornada || '—'}
-                    </div>
-                    <button 
-                      onClick={() => togglePresence(a.matricula)}
-                      className="text-muted hover:text-red-500 transition-colors"
+                .map(a => {
+                  const isInter = presence[a.matricula]?.jornada === 'intermediário';
+                  return (
+                    <div
+                      key={a.matricula}
+                      className={cn(
+                        "flex items-center gap-3 p-2.5 px-3.5 border rounded transition-all",
+                        isInter
+                          ? "bg-amber-500/10 border-amber-500/40"
+                          : "bg-teal-500/10 border-teal-500/30"
+                      )}
                     >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))
+                      <div className={cn(
+                        "w-4.5 h-4.5 rounded flex items-center justify-center text-white text-[10px]",
+                        isInter ? "bg-amber-500" : "bg-teal-500"
+                      )}>
+                        {isInter ? '⇄' : '✓'}
+                      </div>
+                      <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.matricula}</div>
+                      <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
+                      <div className={cn(
+                        "text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border",
+                        isInter
+                          ? "bg-amber-500/20 text-amber-600 border-amber-500/30"
+                          : "bg-teal-500/20 text-teal-600 border-teal-500/20"
+                      )}>
+                        {isInter ? 'Intermediário' : (presence[a.matricula]?.jornada || '—')}
+                      </div>
+                      <button 
+                        onClick={() => togglePresence(a.matricula)}
+                        className="text-muted hover:text-red-500 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  );
+                })
               }
-              {Object.values(presence).filter((p: any) => p.presente).length === 0 && (
+              {/* Intermediários do turno anterior (quando turno fechado) */}
+              {!activeTurnoId && Object.keys(prevTurnoIntermediarios).length > 0 && (
+                <>
+                  <div className="text-[10px] font-mono text-amber-500 uppercase tracking-widest pt-2 border-t border-border-2 flex items-center gap-1.5">
+                    <span>⇄</span> Intermediários – permanecendo do turno anterior
+                  </div>
+                  {allAgentes
+                    .filter(a => prevTurnoIntermediarios[a.matricula])
+                    .map(a => (
+                      <div
+                        key={a.matricula}
+                        className="flex items-center gap-3 p-2.5 px-3.5 bg-amber-500/10 border border-amber-500/40 rounded transition-all opacity-80"
+                      >
+                        <div className="w-4.5 h-4.5 rounded bg-amber-500 flex items-center justify-center text-white text-[10px]">⇄</div>
+                        <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.matricula}</div>
+                        <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
+                        <div className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                          Intermediário
+                        </div>
+                      </div>
+                    ))
+                  }
+                </>
+              )}
+              {Object.values(presence).filter((p: any) => p.presente).length === 0 &&
+                Object.keys(prevTurnoIntermediarios).length === 0 && (
                 <div className="text-center py-8 border border-dashed border-border rounded text-hint text-xs">
                   Nenhum agente adicionado ao turno ainda.
                 </div>

@@ -311,13 +311,11 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     fetchActiveTurno();
     fetchAgentes();
     
-    // Fallback: faz o poll silencioso a cada 10 segundos APENAS quando o turno estiver fechado
-    // para não sobrecarregar o banco de dados quando já estiver conectado e rodando.
+    // Fallback: faz o poll silencioso a cada 15 segundos incondicionalmente
+    // Garante que o canal receba aberturas/fechamentos mesmo se o websocket do Realtime cair.
     const backupPoll = setInterval(() => {
-      if (isTurnoFechadoRef.current) {
-        fetchActiveTurno({ silent: true });
-      }
-    }, 10000);
+      fetchActiveTurno({ silent: true });
+    }, 15000);
 
     const turnoChannel = supabase
       .channel('posto-turno-monitor')

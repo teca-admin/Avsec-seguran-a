@@ -510,7 +510,10 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
     // Validação de campos obrigatórios
     if (!supervisorName.trim() || !recebeuDe.trim()) {
-      alert('⚠️ Atenção: Os campos "Nome do Supervisor" e "Recebeu de (Supervisor Turno Anterior)" são obrigatórios para o relatório.');
+      setModalFeedback({ 
+        type: 'error', 
+        message: 'Os campos "Nome do Supervisor" e "Recebeu de" são obrigatórios para o envio do relatório.' 
+      });
       return;
     }
 

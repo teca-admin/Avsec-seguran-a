@@ -761,10 +761,10 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             {responsavelId ? (() => {
               const resp = allAgentes.find(a => a.matricula === responsavelId);
               return (
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded">
-                  <UserCheck size={12} className="text-amber-500 shrink-0" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-3 border border-border rounded">
+                  <UserCheck size={12} className="text-text/60 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[9px] font-mono text-amber-500 uppercase tracking-wider">Responsável</div>
+                    <div className="text-[9px] font-mono text-muted uppercase tracking-wider">Responsável</div>
                     <div className="text-[12px] font-medium truncate">{resp?.nome || responsavelId}</div>
                   </div>
                   {activeTurnoId && (

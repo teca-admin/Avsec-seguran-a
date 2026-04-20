@@ -408,11 +408,16 @@ export default function PdfReport({
             {ocorrencias.map((o, i) => (
               <div key={i} className="ocorrencia-card">
                 <div className="ocorrencia-header">
-                  <span className="ocorrencia-tipo">
-                    {o.tipo === 'gpa' ? 'Registro de passageiro armado' : 
-                     o.tipo === 'gdaf' ? 'Registro de despacho de arma de fogo' : 
-                     o.tipo}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className="ocorrencia-tipo">
+                      {o.tipo === 'gpa' ? 'Registro de passageiro armado' : 
+                       o.tipo === 'gdaf' ? 'Registro de despacho de arma de fogo' : 
+                       o.tipo}
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', padding: '2px 7px', borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', letterSpacing: '0.5px' }}>
+                      {CANAL_CONFIG[o.canal]?.label || o.canal}
+                    </span>
+                  </div>
                   <span className="ocorrencia-hora">
                     {o.hora}
                     {o.tipo !== 'teca' && (o.hora_inicio || o.hora_fim) && (
@@ -579,7 +584,6 @@ export default function PdfReport({
         <div className="signature-block">
           <div className="signature-line"></div>
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#ee2f24', textTransform: 'uppercase' }}>{supervisor}</div>
-          <div style={{ fontSize: '11px', color: '#4b5563', fontWeight: '600' }}>Supervisor AVSEC · WFS</div>
         </div>
       </div>
     </div>

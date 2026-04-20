@@ -302,38 +302,42 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   };
 
   useEffect(() => {
+    fetchActiveTurno();
+  }, [fetchActiveTurno]);
+
+  useEffect(() => {
+    if (!activeTurno?.id) return;
+    
     let channel: any;
     let pollInterval: any;
 
     const init = async () => {
       setLoading(true);
       try {
-        const turnoId = await fetchActiveTurno();
-        if (turnoId) {
-          await Promise.all([
-            buscarEfetivo(turnoId),
-            buscarOcorrencias(turnoId),
-            buscarDadosAdicionais(turnoId),
-            buscarResponsaveis(turnoId)
-          ]);
+        const turnoId = activeTurno.id;
+        await Promise.all([
+          buscarEfetivo(turnoId),
+          buscarOcorrencias(turnoId),
+          buscarDadosAdicionais(turnoId),
+          buscarResponsaveis(turnoId)
+        ]);
 
-          channel = supabase
-            .channel('supervisor-realtime')
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
-            .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'canal_responsavel' }, () => buscarResponsaveis(turnoId))
-            .subscribe();
+        channel = supabase
+          .channel('supervisor-realtime')
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'ocorrencias' }, () => buscarOcorrencias(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'efetivo_turno' }, () => buscarEfetivo(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'equipamentos' }, () => buscarDadosAdicionais(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'canal_responsavel' }, () => buscarResponsaveis(turnoId))
+          .subscribe();
 
-          pollInterval = setInterval(() => {
-            buscarEfetivo(turnoId);
-            buscarOcorrencias(turnoId);
-            buscarDadosAdicionais(turnoId);
-            buscarResponsaveis(turnoId);
-          }, 10000);
-        }
+        pollInterval = setInterval(() => {
+          buscarEfetivo(turnoId);
+          buscarOcorrencias(turnoId);
+          buscarDadosAdicionais(turnoId);
+          buscarResponsaveis(turnoId);
+        }, 10000);
       } catch (err) {
         console.error('Erro na inicialização do Supervisor:', err);
       } finally {
@@ -347,7 +351,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (pollInterval) clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchActiveTurno, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis]);
+  }, [activeTurno?.id, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis]);
 
   const handlePrint = () => {
     window.print();

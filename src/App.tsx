@@ -15,7 +15,9 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || (process.env as a
 const hasValidConfig = Boolean(SUPABASE_URL) && Boolean(SUPABASE_KEY);
 
 export default function App() {
-  const [user, setUser] = useState<Canal | null>(null);
+  const [user, setUser] = useState<Canal | null>(() => {
+    return (sessionStorage.getItem('avsec_user') as Canal) || null;
+  });
   const [turno, setTurno] = useState('A');
 
   if (!hasValidConfig) {
@@ -56,10 +58,12 @@ export default function App() {
 
   const handleLogin = (canal: Canal) => {
     setUser(canal);
+    sessionStorage.setItem('avsec_user', canal);
   };
 
   const handleLogout = () => {
     setUser(null);
+    sessionStorage.removeItem('avsec_user');
   };
 
   if (!user) {

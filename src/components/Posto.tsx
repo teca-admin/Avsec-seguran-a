@@ -307,6 +307,9 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     fetchActiveTurno();
     fetchAgentes();
     
+    // Fallback: poll a cada 5 segundos para garantir que o canal veja o fechamento/abertura
+    const backupPoll = setInterval(fetchActiveTurno, 5000);
+
     const turnoChannel = supabase
       .channel('posto-turno-monitor')
       .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'turnos' }, () => {
@@ -315,6 +318,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       .subscribe();
 
     return () => {
+      clearInterval(backupPoll);
       supabase.removeChannel(turnoChannel);
     };
   }, [fetchActiveTurno]);

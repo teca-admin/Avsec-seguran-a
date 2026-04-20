@@ -38,7 +38,7 @@ export default function App() {
               
               <div className="p-4 bg-surface-2 rounded border border-border-2">
                 <p className="text-xs font-mono text-accent uppercase tracking-wider mb-2">Passo 2</p>
-                <p className="text-sm text-text">Adicione as seguintes chaves nos <b>Secrets</b> do AI Studio:</p>
+                <p className="text-sm text-text">Adicione as seguintes chaves nas variáveis de ambiente do projeto:</p>
                 <ul className="mt-2 space-y-1.5 text-[13px] text-muted list-disc list-inside">
                   <li><code>VITE_SUPABASE_URL</code></li>
                   <li><code>VITE_SUPABASE_ANON_KEY</code></li>

@@ -502,7 +502,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const handleSendWebhook = async () => {
     const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (process.env as any).VITE_N8N_WEBHOOK_URL;
     if (!webhookUrl || webhookUrl === 'SUA_URL_DO_N8N_AQUI') {
-      alert('URL do Webhook n8n não configurada nos Secrets do AI Studio');
+      alert('URL do Webhook n8n não configurada. Verifique a variável VITE_N8N_WEBHOOK_URL nas configurações do projeto.');
       return;
     }
 

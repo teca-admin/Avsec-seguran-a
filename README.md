@@ -1,20 +1,31 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# L.E.O — Livro Eletrônico de Ocorrência
 
-# Run and deploy your AI Studio app
+Sistema de registro de ocorrências de segurança aeroportuária (AVSEC).
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/d914b8be-9e72-4bfc-9bff-21bf7faab7ac
+- **Frontend:** React + TypeScript + Vite → deploy na Vercel
+- **Backend:** Supabase (self-hosted via Easypanel/Hostinger VPS)
+- **PDF/Relatórios:** html2pdf.js
+- **Automação:** n8n Webhook
 
-## Run Locally
+## Variáveis de Ambiente
 
-**Prerequisites:**  Node.js
+Crie um arquivo `.env.local` na raiz com:
 
+```
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-anon-key
+VITE_N8N_WEBHOOK_URL=https://seu-n8n.com/webhook/...
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Rodar Localmente
+
+```bash
+npm install
+npm run dev
+```
+
+## Deploy
+
+O deploy é feito automaticamente pela Vercel a cada push na branch principal.

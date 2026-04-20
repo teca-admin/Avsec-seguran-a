@@ -739,21 +739,85 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="text-[11px] font-mono text-muted uppercase tracking-widest mb-3 pb-2 border-b border-border-2">
           Turno em serviço
         </div>
-        <div className="flex gap-2 flex-wrap mb-4">
-          {Object.values(TURNOS).map((t) => (
-            <button
-              key={t.letra}
-              disabled
-              className={cn(
-                "px-3 py-1.5 rounded text-xs font-mono border transition-all cursor-default",
-                turno === t.letra 
-                  ? "border-accent text-accent bg-accent/10" 
-                  : "border-border bg-surface-2 text-muted opacity-50"
-              )}
-            >
-              {t.letra} · {t.inicio}–{t.fim}
-            </button>
-          ))}
+        <div className="flex items-start gap-4 mb-4">
+          <div className="flex gap-2 flex-wrap flex-1">
+            {Object.values(TURNOS).map((t) => (
+              <button
+                key={t.letra}
+                disabled
+                className={cn(
+                  "px-3 py-1.5 rounded text-xs font-mono border transition-all cursor-default",
+                  turno === t.letra 
+                    ? "border-accent text-accent bg-accent/10" 
+                    : "border-border bg-surface-2 text-muted opacity-50"
+                )}
+              >
+                {t.letra} · {t.inicio}–{t.fim}
+              </button>
+            ))}
+          </div>
+          {/* Responsável pelo Canal */}
+          <div className="shrink-0 min-w-[180px]">
+            {responsavelId ? (() => {
+              const resp = allAgentes.find(a => a.matricula === responsavelId);
+              return (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded">
+                  <UserCheck size={12} className="text-amber-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[9px] font-mono text-amber-500 uppercase tracking-wider">Responsável</div>
+                    <div className="text-[12px] font-medium truncate">{resp?.nome || responsavelId}</div>
+                  </div>
+                  {activeTurnoId && (
+                    <button
+                      onClick={() => setResponsavelId(null)}
+                      className="text-muted hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              );
+            })() : (
+              <div className="relative">
+                <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-1">Responsável pelo Canal</div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted" />
+                  <input
+                    type="text"
+                    placeholder={activeTurnoId ? 'Buscar...' : 'Sem turno ativo'}
+                    disabled={!activeTurnoId}
+                    className="w-full pl-7 pr-3 py-1.5 bg-surface-2 border border-border-2 rounded text-xs focus:outline-none focus:border-amber-500 transition-all disabled:opacity-50"
+                    value={responsavelSearchTerm}
+                    onChange={(e) => setResponsavelSearchTerm(e.target.value)}
+                  />
+                </div>
+                {responsavelSearchTerm && (
+                  <div className="absolute z-[200] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-48 overflow-y-auto">
+                    {allAgentes
+                      .filter(a => {
+                        const term = responsavelSearchTerm.toLowerCase();
+                        return a.nome.toLowerCase().includes(term) || a.matricula.toLowerCase().includes(term);
+                      })
+                      .slice(0, 8)
+                      .map(a => (
+                        <div
+                          key={a.matricula}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-amber-500/10 cursor-pointer transition-colors border-b border-border last:border-0"
+                          onClick={() => handleSaveResponsavel(a.matricula)}
+                        >
+                          <UserCheck size={11} className="text-amber-500 shrink-0" />
+                          <div>
+                            <div className="text-xs font-medium">{a.nome}</div>
+                            <div className="text-[10px] text-muted font-mono">{a.matricula}</div>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="bg-white/5 border border-white/10 rounded p-3.5 flex justify-between items-center">
           <p className="text-[13px] text-muted italic">
@@ -786,70 +850,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
 
       {activeTab === 'efetivo' && (
         <div className="space-y-4">
-
-          {/* Responsável pelo Canal */}
-          <div className="card p-3 border-border-2">
-            <div className="text-[10px] font-mono text-muted uppercase tracking-widest mb-2 flex items-center gap-1.5">
-              <UserCheck size={12} />
-              Responsável pelo Canal neste Turno
-            </div>
-            {responsavelId ? (() => {
-              const resp = allAgentes.find(a => a.matricula === responsavelId);
-              return (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-teal-500" />
-                    <span className="text-sm font-medium">{resp?.nome || responsavelId}</span>
-                    <span className="text-[10px] font-mono text-muted">{resp?.matricula}</span>
-                  </div>
-                  {activeTurnoId && (
-                    <button
-                      onClick={() => setResponsavelId(null)}
-                      className="text-[10px] text-muted hover:text-red-400 transition-colors"
-                    >
-                      Trocar
-                    </button>
-                  )}
-                </div>
-              );
-            })() : (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
-                <input
-                  type="text"
-                  placeholder={activeTurnoId ? 'Buscar responsável pelo canal...' : 'Sem turno ativo'}
-                  disabled={!activeTurnoId}
-                  className="w-full pl-9 pr-4 py-2 bg-surface-2 border border-border-2 rounded text-sm focus:outline-none focus:border-amber-500 transition-all disabled:opacity-50"
-                  value={responsavelSearchTerm}
-                  onChange={(e) => setResponsavelSearchTerm(e.target.value)}
-                />
-                {responsavelSearchTerm && (
-                  <div className="absolute z-[200] left-0 right-0 top-full mt-1 bg-surface border border-border rounded shadow-xl max-h-48 overflow-y-auto">
-                    {allAgentes
-                      .filter(a => {
-                        const term = responsavelSearchTerm.toLowerCase();
-                        return a.nome.toLowerCase().includes(term) || a.matricula.toLowerCase().includes(term);
-                      })
-                      .slice(0, 8)
-                      .map(a => (
-                        <div
-                          key={a.matricula}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-amber-500/10 cursor-pointer transition-colors border-b border-border last:border-0"
-                          onClick={() => handleSaveResponsavel(a.matricula)}
-                        >
-                          <UserCheck size={12} className="text-amber-500 shrink-0" />
-                          <div>
-                            <div className="text-sm font-medium">{a.nome}</div>
-                            <div className="text-[10px] text-muted font-mono">{a.matricula}</div>
-                          </div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* Adicionar Agente */}
           <div className="relative">

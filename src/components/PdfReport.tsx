@@ -360,7 +360,7 @@ export default function PdfReport({
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                     <span style={{ fontSize: '9px', fontWeight: 'normal' }}>Total: {presentes.length} agentes</span>
                     {responsavelNome && (
-                      <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ee2f24' }}>Respável: {responsavelNome}</span>
+                      <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ee2f24' }}>Responsável: {responsavelNome}</span>
                     )}
                   </div>
                 </div>

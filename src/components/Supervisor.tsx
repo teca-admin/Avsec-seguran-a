@@ -269,8 +269,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (newTurno) {
         setActiveTurno(newTurno);
         onTurnoChange(newTurno.letra);
-        // Recarregar para inicializar os listeners com o novo ID
-        window.location.reload();
+        // Atualiza a tela silenciosamente sem reload
+        await fetchActiveTurno();
       }
     } catch (error) {
       console.error('Erro ao abrir novo turno:', error);
@@ -291,9 +291,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         .eq('id', activeTurno.id);
         
       if (error) throw error;
-      
-      // Recarregar para buscar o próximo turno ou mostrar que não há ativo
-      window.location.reload();
+      // Buscar o status mais atualizado sem recarregar e dar refresh no listener local
+      await fetchActiveTurno();
     } catch (err: any) {
       console.error('Erro ao encerrar turno:', err);
       setError('Erro ao encerrar turno: ' + err.message);

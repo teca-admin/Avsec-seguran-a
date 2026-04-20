@@ -95,9 +95,11 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   }, []);
 
-  const fetchActiveTurno = useCallback(async () => {
+  const isTurnoFechadoRef = React.useRef(true);
+
+  const fetchActiveTurno = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) setLoading(true);
       setError(null);
       const { data, error } = await supabase
         .schema('seguranca')
@@ -116,11 +118,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       }
 
       if (data && data.length > 0) {
+        isTurnoFechadoRef.current = false;
         const active = data[0];
         setActiveTurnoId(active.id);
         onTurnoChange(active.letra);
         return active.id;
       } else {
+        isTurnoFechadoRef.current = true;
         // Turno encerrado – buscar intermediários do último turno fechado
         setActiveTurnoId(null);
         onTurnoChange(null);
@@ -161,7 +165,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         setError('Erro ao sincronizar turno: ' + (err.message || 'Verifique sua conexão.'));
       }
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
     return null;
   }, [canal, onTurnoChange]);
@@ -307,8 +311,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     fetchActiveTurno();
     fetchAgentes();
     
-    // Fallback: poll a cada 5 segundos para garantir que o canal veja o fechamento/abertura
-    const backupPoll = setInterval(fetchActiveTurno, 5000);
+    // Fallback: faz o poll silencioso a cada 10 segundos APENAS quando o turno estiver fechado
+    // para não sobrecarregar o banco de dados quando já estiver conectado e rodando.
+    const backupPoll = setInterval(() => {
+      if (isTurnoFechadoRef.current) {
+        fetchActiveTurno({ silent: true });
+      }
+    }, 10000);
 
     const turnoChannel = supabase
       .channel('posto-turno-monitor')

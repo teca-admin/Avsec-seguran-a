@@ -42,6 +42,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [canalResponsaveis, setCanalResponsaveis] = useState<Record<Canal, string | null>>({
     alfa: null, bravo: null, charlie: null, fox: null, supervisor: null
   });
+  const [modalFeedback, setModalFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const fetchAgentes = useCallback(async () => {
     try {
@@ -563,13 +564,13 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
       if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
       
-      alert('Relatório PDF enviado com sucesso para o e-mail via Webhook!');
+      setModalFeedback({ type: 'success', message: 'Relatório PDF enviado com sucesso para o e-mail via Webhook!' });
       
       // Quando clicar em enviar o relatorio o turno deve ser zerado (encerrado)
       await encerrarTurno();
     } catch (error: any) {
       console.error('Erro ao gerar/enviar PDF:', error);
-      alert(`Erro ao enviar relatório: ${error.message}`);
+      setModalFeedback({ type: 'error', message: `Erro ao enviar relatório: ${error.message}` });
     } finally {
       setSending(false);
     }
@@ -1305,6 +1306,42 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
               <button onClick={() => setIsEditPaxModalOpen(false)} className="btn btn-secondary">Cancelar</button>
               <button onClick={handleUpdatePaxFlow} className="btn btn-primary">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Feedback (Sucesso/Erro) */}
+      {modalFeedback && (
+        <div className="fixed inset-0 bg-black/80 z-[600] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-sm shadow-2xl p-6 text-center space-y-4">
+            <div className="flex justify-center mb-2">
+              {modalFeedback.type === 'success' ? (
+                <div className="w-16 h-16 rounded-full bg-teal-500/10 flex items-center justify-center border border-teal-500/30">
+                  <div className="text-3xl">✅</div>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/30">
+                  <div className="text-3xl">⚠️</div>
+                </div>
+              )}
+            </div>
+            
+            <h3 className="text-lg font-medium text-text">
+              {modalFeedback.type === 'success' ? 'Sucesso!' : 'Atenção'}
+            </h3>
+            
+            <p className="text-sm text-muted leading-relaxed">
+              {modalFeedback.message}
+            </p>
+            
+            <div className="pt-4">
+              <button 
+                onClick={() => setModalFeedback(null)} 
+                className={cn("w-full py-2.5 rounded text-sm font-medium transition-all shadow-sm", modalFeedback.type === 'success' ? "bg-teal-600 hover:bg-teal-500 text-white" : "bg-red-600 hover:bg-red-500 text-white")}
+              >
+                Okay, entendi
+              </button>
             </div>
           </div>
         </div>

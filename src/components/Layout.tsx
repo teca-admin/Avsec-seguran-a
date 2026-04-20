@@ -61,7 +61,11 @@ export default function Layout({ children, user, onLogout, turno }: LayoutProps)
           <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
           Online
         </div>
-        <span>Turno {turno} · {turnoInfo.inicio}–{turnoInfo.fim}</span>
+        {turnoInfo ? (
+          <span>Turno {turno} · {turnoInfo.inicio}–{turnoInfo.fim}</span>
+        ) : (
+          <span>Aguardando Turno</span>
+        )}
       </footer>
     </div>
   );

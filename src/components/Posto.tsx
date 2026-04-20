@@ -719,10 +719,9 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <div className="w-16 h-16 rounded-full bg-surface-2 flex items-center justify-center mb-2 animate-pulse">
           <ClipboardList className="text-muted" size={32} />
         </div>
-        <h3 className="text-lg font-medium text-text">Aguardando Abertura de Turno</h3>
+        <h3 className="text-lg font-medium text-text">Aguardando abertura do livro pelo Supervisor</h3>
         <p className="text-sm text-muted max-w-xs mx-auto">
-          O Supervisor ainda não abriu o turno de hoje. 
-          Esta página será atualizada automaticamente assim que o turno for iniciado.
+          O turno ainda não foi iniciado. Esta página será atualizada automaticamente assim que o Supervisor abrir o livro.
         </p>
       </div>
     );

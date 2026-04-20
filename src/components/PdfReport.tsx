@@ -576,14 +576,10 @@ export default function PdfReport({
       )}
 
       {/* Footer */}
-      <div className="footer-line">
+      <div className="footer-line" style={{ justifyContent: 'center', textAlign: 'center', borderTop: '1px solid #e5e7eb', paddingTop: '8px', marginTop: '24px' }}>
         <div>
           <p style={{ margin: 0 }}><b>Localidade:</b> Manaus, AM</p>
           <p style={{ margin: '2px 0 0 0' }}><b>Gerado em:</b> {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</p>
-        </div>
-        <div className="signature-block">
-          <div className="signature-line"></div>
-          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#ee2f24', textTransform: 'uppercase' }}>{supervisor}</div>
         </div>
       </div>
     </div>

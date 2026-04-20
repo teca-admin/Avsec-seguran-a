@@ -41,37 +41,32 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
     setError('');
 
-    try {
-      const { data, error: dbError } = await supabase
-        .schema('seguranca')
-        .from('senhas_canais')
-        .select('senha')
-        .eq('canal', user)
-        .single();
+    const registerFailedAttempt = () => {
+      attemptsRef.current += 1;
+      if (attemptsRef.current >= MAX_ATTEMPTS) {
+        lockoutUntilRef.current = Date.now() + LOCKOUT_DURATION_MS;
+        attemptsRef.current = 0;
+        setError('Muitas tentativas incorretas. Acesso bloqueado por 5 minutos.');
+      } else {
+        setError('Credenciais inválidas.');
+      }
+      setPass('');
+    };
 
-      if (dbError || !data) {
-        attemptsRef.current += 1;
-        if (attemptsRef.current >= MAX_ATTEMPTS) {
-          lockoutUntilRef.current = Date.now() + LOCKOUT_DURATION_MS;
-          attemptsRef.current = 0;
-          setError('Muitas tentativas incorretas. Acesso bloqueado por 5 minutos.');
-        } else {
-          setError('Credenciais inválidas.');
+    try {
+      const { data: ok, error: rpcError } = await supabase
+        .rpc('verify_canal_password', { p_canal: user, p_senha: pass });
+
+      if (rpcError) {
+        if (rpcError.message?.includes('function') && rpcError.message?.includes('does not exist')) {
+          setError('Configuração pendente: execute o arquivo security-fix-login.sql no Supabase SQL Editor.');
+          return;
         }
-        setPass('');
-        return;
+        throw rpcError;
       }
 
-      if (data.senha !== pass) {
-        attemptsRef.current += 1;
-        if (attemptsRef.current >= MAX_ATTEMPTS) {
-          lockoutUntilRef.current = Date.now() + LOCKOUT_DURATION_MS;
-          attemptsRef.current = 0;
-          setError('Muitas tentativas incorretas. Acesso bloqueado por 5 minutos.');
-        } else {
-          setError('Credenciais inválidas.');
-        }
-        setPass('');
+      if (!ok) {
+        registerFailedAttempt();
         return;
       }
 

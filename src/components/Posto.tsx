@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Canal, TURNOS, CANAL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
-import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X, UserCheck } from 'lucide-react';
+import { Plus, ClipboardList, Users, HardDrive, Plane, Loader2, Search, X, UserCheck, Clock, LogOut } from 'lucide-react';
 import OcorrenciaModal from './OcorrenciaModal';
 import { Ocorrencia, Turno, OcorrenciaTipo } from '../types';
 import { supabase } from '../lib/supabase';
@@ -80,6 +80,13 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
   const [editingOcorrencia, setEditingOcorrencia] = useState<Ocorrencia | null>(null);
   const [isEditOcorrenciaModalOpen, setIsEditOcorrenciaModalOpen] = useState(false);
 
+  // Intermediário tracking
+  const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
+  const [pendingIntermediarioAgent, setPendingIntermediarioAgent] = useState<any | null>(null);
+  const [pendingIntermediarioHora, setPendingIntermediarioHora] = useState('');
+  const [stampingSaidaAgent, setStampingSaidaAgent] = useState<any | null>(null);
+  const [stampingSaidaHora, setStampingSaidaHora] = useState('');
+
   const fetchAgentes = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -147,7 +154,8 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
               .eq('turno_id', lastTurno.id)
               .eq('canal', canal)
               .eq('presente', true)
-              .eq('jornada', 'intermediário');
+              .eq('jornada', 'intermediário')
+              .eq('continua_proximo_turno', true);
             if (interData && interData.length > 0) {
               const map: Record<string, { presente: boolean, jornada?: string }> = {};
               interData.forEach((p: any) => { map[p.agente_id] = { presente: true, jornada: 'intermediário' }; });
@@ -306,6 +314,47 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
     }
   }, [canal]);
 
+  const fetchMovimentacoes = useCallback(async (turnoId: string) => {
+    try {
+      const { data } = await supabase.schema('seguranca').from('agente_movimentacoes').select('*').eq('turno_id', turnoId).eq('canal', canal);
+      if (data) setMovimentacoes(data);
+    } catch (err) {
+      console.error('Erro ao buscar movimentações:', err);
+    }
+  }, [canal]);
+
+  const handleConfirmIntermediario = async () => {
+    if (!pendingIntermediarioAgent || !activeTurnoId) return;
+    await togglePresence(pendingIntermediarioAgent.matricula, 'intermediário');
+    try {
+      await supabase.schema('seguranca').from('agente_movimentacoes').insert({
+        turno_id: activeTurnoId,
+        agente_id: pendingIntermediarioAgent.matricula,
+        canal,
+        hora_entrada: pendingIntermediarioHora || new Date().toTimeString().slice(0, 5)
+      });
+      await fetchMovimentacoes(activeTurnoId);
+    } catch (err) {
+      console.error('Erro ao salvar movimentação de entrada:', err);
+    }
+    setPendingIntermediarioAgent(null);
+    setSearchTerm('');
+  };
+
+  const handleConfirmSaida = async () => {
+    if (!stampingSaidaAgent || !activeTurnoId) return;
+    const mov = movimentacoes.find(m => m.agente_id === stampingSaidaAgent.matricula && !m.hora_saida);
+    if (mov) {
+      try {
+        await supabase.schema('seguranca').from('agente_movimentacoes').update({ hora_saida: stampingSaidaHora || new Date().toTimeString().slice(0, 5) }).eq('id', mov.id);
+        await fetchMovimentacoes(activeTurnoId);
+      } catch (err) {
+        console.error('Erro ao registrar saída:', err);
+      }
+    }
+    setStampingSaidaAgent(null);
+  };
+
   // 1. Monitorar turnos (Abertura/Fechamento pelo Supervisor)
   useEffect(() => {
     fetchActiveTurno();
@@ -344,7 +393,8 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         fetchEquipamentos(activeTurnoId),
         fetchPaxFlow(activeTurnoId),
         fetchVoos(activeTurnoId),
-        fetchResponsavel(activeTurnoId)
+        fetchResponsavel(activeTurnoId),
+        fetchMovimentacoes(activeTurnoId)
       ]);
 
       channel = supabase
@@ -364,6 +414,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
         fetchPaxFlow(activeTurnoId);
         fetchVoos(activeTurnoId);
         fetchResponsavel(activeTurnoId);
+        fetchMovimentacoes(activeTurnoId);
       }, 10000);
     };
 
@@ -373,7 +424,7 @@ export default function Posto({ canal, turno, onTurnoChange }: PostoProps) {
       if (channel) supabase.removeChannel(channel);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [activeTurnoId, canal, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos, fetchResponsavel]);
+  }, [activeTurnoId, canal, fetchPresence, fetchOcorrencias, fetchEquipamentos, fetchPaxFlow, fetchVoos, fetchResponsavel, fetchMovimentacoes]);
 
   const filteredAgentes = useMemo(() => {
     if (!searchTerm) return allAgentes;
@@ -806,7 +857,9 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     {allAgentes
                       .filter(a => {
                         const term = responsavelSearchTerm.toLowerCase();
-                        return a.nome.toLowerCase().includes(term) || a.matricula.toLowerCase().includes(term);
+                        const nome = a.nome.toLowerCase();
+                        const mat = a.matricula.toLowerCase();
+                        return nome.split(' ').some((w: string) => w.startsWith(term)) || mat.startsWith(term);
                       })
                       .slice(0, 8)
                       .map(a => (
@@ -932,11 +985,12 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                           </button>
                           <button
                             onClick={() => {
-                              togglePresence(a.matricula, 'intermediário');
+                              setPendingIntermediarioAgent(a);
+                              setPendingIntermediarioHora(new Date().toTimeString().slice(0, 5));
                               setSearchTerm('');
                             }}
                             className="px-2 py-1 text-[10px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-600 rounded hover:bg-amber-500 hover:text-white transition-all"
-                            title="Agente que trabalha em 2 turnos consecutivos"
+                            title="Agente que trabalha em 2 turnos consecutivos — informar hora de chegada"
                           >
                             Interm.
                           </button>
@@ -974,15 +1028,46 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                       </div>
                       <div className="font-mono text-[11px] text-muted w-11 shrink-0">{a.matricula}</div>
                       <div className="flex-1 text-[13px] font-medium">{a.nome}</div>
-                      <div className={cn(
-                        "text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border",
-                        isInter
-                          ? "bg-amber-500/20 text-amber-600 border-amber-500/30"
-                          : "bg-teal-500/20 text-teal-600 border-teal-500/20"
-                      )}>
-                        {isInter ? 'Intermediário' : (presence[a.matricula]?.jornada || '—')}
+                        <div className="flex items-center gap-1.5">
+                        {isInter && (() => {
+                          const mov = movimentacoes.find(m => m.agente_id === a.matricula && !m.hora_saida);
+                          const movSaida = movimentacoes.find(m => m.agente_id === a.matricula && m.hora_saida);
+                          return (
+                            <>
+                              {mov?.hora_entrada && (
+                                <span className="text-[9px] font-mono text-amber-600 flex items-center gap-0.5">
+                                  <Clock size={9} />
+                                  {mov.hora_entrada}
+                                </span>
+                              )}
+                              {movSaida?.hora_saida && (
+                                <span className="text-[9px] font-mono text-muted flex items-center gap-0.5 line-through opacity-60">
+                                  <LogOut size={9} />
+                                  {movSaida.hora_saida}
+                                </span>
+                              )}
+                              {!movSaida && (
+                                <button
+                                  onClick={() => { setStampingSaidaAgent(a); setStampingSaidaHora(new Date().toTimeString().slice(0, 5)); }}
+                                  className="px-1.5 py-0.5 text-[9px] font-bold bg-surface-3 border border-border rounded hover:bg-red-500/20 hover:border-red-400 hover:text-red-500 transition-all flex items-center gap-0.5"
+                                  title="Registrar horário de saída do agente"
+                                >
+                                  <LogOut size={9} /> Saída
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                        <div className={cn(
+                          "text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border",
+                          isInter
+                            ? "bg-amber-500/20 text-amber-600 border-amber-500/30"
+                            : "bg-teal-500/20 text-teal-600 border-teal-500/20"
+                        )}>
+                          {isInter ? 'Intermediário' : (presence[a.matricula]?.jornada || '—')}
+                        </div>
                       </div>
-                      <button 
+                      <button
                         onClick={() => togglePresence(a.matricula)}
                         className="text-muted hover:text-red-500 transition-colors"
                       >
@@ -1510,12 +1595,78 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         </div>
       )}
 
-      <OcorrenciaModal 
-        isOpen={isModalOpen} 
+      {/* Dialog: Horário de chegada do intermediário */}
+      {pendingIntermediarioAgent && (
+        <div className="fixed inset-0 bg-black/70 z-[500] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-sm shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center gap-2">
+              <Clock size={16} className="text-amber-500" />
+              <span className="text-sm font-medium">Horário de chegada ao canal</span>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-muted leading-relaxed">
+                Informe o horário em que <b className="text-text">{pendingIntermediarioAgent.nome}</b> chegou ao canal {CANAL_CONFIG[canal]?.name}.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Horário de chegada</label>
+                <input
+                  type="time"
+                  value={pendingIntermediarioHora}
+                  onChange={e => setPendingIntermediarioHora(e.target.value)}
+                  className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setPendingIntermediarioAgent(null)} className="btn btn-secondary btn-sm">Cancelar</button>
+              <button onClick={handleConfirmIntermediario} className="btn btn-sm gap-1.5 bg-amber-500 hover:bg-amber-400 text-white">
+                <Clock size={13} /> Confirmar chegada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog: Horário de saída do intermediário */}
+      {stampingSaidaAgent && (
+        <div className="fixed inset-0 bg-black/70 z-[500] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-sm shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center gap-2">
+              <LogOut size={16} className="text-red-400" />
+              <span className="text-sm font-medium">Registrar saída do canal</span>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-muted leading-relaxed">
+                Informe o horário em que <b className="text-text">{stampingSaidaAgent.nome}</b> saiu do canal {CANAL_CONFIG[canal]?.name}.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Horário de saída</label>
+                <input
+                  type="time"
+                  value={stampingSaidaHora}
+                  onChange={e => setStampingSaidaHora(e.target.value)}
+                  className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-400"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setStampingSaidaAgent(null)} className="btn btn-secondary btn-sm">Cancelar</button>
+              <button onClick={handleConfirmSaida} className="btn btn-sm gap-1.5 bg-red-500 hover:bg-red-400 text-white">
+                <LogOut size={13} /> Confirmar saída
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <OcorrenciaModal
+        isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setModalInitialTipo(undefined);
-        }} 
+        }}
         onSave={handleSaveOcorrencia}
         canal={canal}
         allAgentes={allAgentes}

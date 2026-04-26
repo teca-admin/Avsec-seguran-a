@@ -14,10 +14,11 @@ interface PdfReportProps {
   equipamentos?: EquipamentoDefeito[];
   voos?: VooInternacional[];
   canalResponsaveis?: Record<Canal, string | null>;
+  movimentacoes?: any[];
 }
 
-export default function PdfReport({ 
-  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos, canalResponsaveis 
+export default function PdfReport({
+  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos, canalResponsaveis, movimentacoes = []
 }: PdfReportProps) {
   const t = TURNOS[turno];
 
@@ -571,6 +572,48 @@ export default function PdfReport({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Movimentação de Intermediários */}
+      {movimentacoes.length > 0 && (
+        <div className="section-container">
+          <div className="section-title">7. Movimentação de Agentes Intermediários</div>
+          <div className="section-content">
+            <table className="efetivo-table">
+              <thead>
+                <tr>
+                  <th>Matrícula</th>
+                  <th>Nome</th>
+                  <th>Canal</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>Entrada</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>Saída</th>
+                  <th>Período</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movimentacoes.map((mov: any, i: number) => {
+                  const agente = allAgentes.find((a: any) => a.matricula === mov.agente_id);
+                  const canalLabel = CANAL_CONFIG[mov.canal as Canal]?.name || mov.canal;
+                  return (
+                    <tr key={i}>
+                      <td style={{ fontFamily: 'monospace', fontSize: '10px' }}>{mov.agente_id}</td>
+                      <td style={{ fontWeight: 'bold' }}>{agente?.nome || mov.agente_id}</td>
+                      <td>{canalLabel}</td>
+                      <td style={{ fontFamily: 'monospace', textAlign: 'center', color: '#16a34a' }}>{mov.hora_entrada || '--:--'}</td>
+                      <td style={{ fontFamily: 'monospace', textAlign: 'center', color: mov.hora_saida ? '#dc2626' : '#6b7280' }}>{mov.hora_saida || 'Em serviço'}</td>
+                      <td style={{ fontSize: '11px', color: '#374151' }}>
+                        {canalLabel}, das {mov.hora_entrada || '--:--'} às {mov.hora_saida || '--:--'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div style={{ fontSize: '9px', color: '#6b7280', fontStyle: 'italic', marginTop: '6px' }}>
+              * Agentes em regime intermediário permanecem em serviço durante a transição entre turnos consecutivos.
+            </div>
           </div>
         </div>
       )}

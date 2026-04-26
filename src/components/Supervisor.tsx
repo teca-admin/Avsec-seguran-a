@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
 import { cn } from '../lib/utils';
-import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane, Clock, Plus } from 'lucide-react';
+import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane, Clock, Plus, History, Search, ChevronDown } from 'lucide-react';
 import PdfReport from './PdfReport';
 import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
 import { supabase } from '../lib/supabase';
@@ -43,6 +43,28 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     alfa: null, bravo: null, charlie: null, fox: null, supervisor: null
   });
   const [modalFeedback, setModalFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [pendingClose, setPendingClose] = useState(false);
+
+  // Intermediário closure check
+  const [closureCheckOpen, setClosureCheckOpen] = useState(false);
+  const [intermediariosToCheck, setIntermediariosToCheck] = useState<any[]>([]);
+  const [intermediarioDecisions, setIntermediarioDecisions] = useState<Record<string, { present: boolean; hora_saida: string }>>({});
+  const [movimentacoesAll, setMovimentacoesAll] = useState<any[]>([]);
+
+  // Historical reports
+  const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
+  const [historicoFiltros, setHistoricoFiltros] = useState({ data_inicio: '', data_fim: '', turno: '', canal: '', tipo: '' });
+  const [historicoResultados, setHistoricoResultados] = useState<any[]>([]);
+  const [isLoadingHistorico, setIsLoadingHistorico] = useState(false);
+
+  const fetchMovimentacoesAll = useCallback(async (turnoId: string) => {
+    try {
+      const { data } = await supabase.schema('seguranca').from('agente_movimentacoes').select('*').eq('turno_id', turnoId);
+      if (data) setMovimentacoesAll(data);
+    } catch (err) {
+      console.error('Erro ao buscar movimentações:', err);
+    }
+  }, []);
 
   const fetchAgentes = useCallback(async () => {
     try {
@@ -279,6 +301,51 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     }
   };
 
+  const checkIntermediarios = useCallback(async () => {
+    if (!activeTurno?.id) return [];
+    try {
+      const { data: efetivo } = await supabase.schema('seguranca').from('efetivo_turno').select('agente_id, canal').eq('turno_id', activeTurno.id).eq('jornada', 'intermediário').eq('presente', true);
+      if (!efetivo || efetivo.length === 0) return [];
+
+      const { data: movs } = await supabase.schema('seguranca').from('agente_movimentacoes').select('*').eq('turno_id', activeTurno.id).is('hora_saida', null);
+      const semSaida = new Set((movs || []).map((m: any) => m.agente_id));
+
+      return efetivo
+        .filter((e: any) => semSaida.has(e.agente_id))
+        .map((e: any) => {
+          const agente = allAgentes.find((a: any) => a.matricula === e.agente_id);
+          const mov = (movs || []).find((m: any) => m.agente_id === e.agente_id);
+          return { agente_id: e.agente_id, canal: e.canal, nome: agente?.nome || e.agente_id, movId: mov?.id, hora_entrada: mov?.hora_entrada, canalLabel: CANAL_CONFIG[e.canal as Canal]?.name || e.canal };
+        });
+    } catch (err) {
+      console.error('Erro ao verificar intermediários:', err);
+      return [];
+    }
+  }, [activeTurno?.id, allAgentes]);
+
+  const buscarHistorico = async () => {
+    setIsLoadingHistorico(true);
+    try {
+      let query = supabase.schema('seguranca').from('ocorrencias').select('*, turno:turnos(id, letra, data, fechado_em)').not('turno', 'is', null).order('ts', { ascending: false }).limit(200);
+
+      if (historicoFiltros.canal) query = query.eq('canal', historicoFiltros.canal);
+      if (historicoFiltros.tipo) query = query.eq('tipo', historicoFiltros.tipo);
+
+      const { data } = await query;
+      let resultados = (data || []).filter((o: any) => o.turno?.fechado_em);
+
+      if (historicoFiltros.turno) resultados = resultados.filter((o: any) => o.turno?.letra === historicoFiltros.turno);
+      if (historicoFiltros.data_inicio) resultados = resultados.filter((o: any) => o.turno?.data >= historicoFiltros.data_inicio);
+      if (historicoFiltros.data_fim) resultados = resultados.filter((o: any) => o.turno?.data <= historicoFiltros.data_fim);
+
+      setHistoricoResultados(resultados);
+    } catch (err) {
+      console.error('Erro ao buscar histórico:', err);
+    } finally {
+      setIsLoadingHistorico(false);
+    }
+  };
+
   const encerrarTurno = async () => {
     if (!activeTurno) return;
     
@@ -319,7 +386,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           buscarEfetivo(turnoId),
           buscarOcorrencias(turnoId),
           buscarDadosAdicionais(turnoId),
-          buscarResponsaveis(turnoId)
+          buscarResponsaveis(turnoId),
+          fetchMovimentacoesAll(turnoId)
         ]);
 
         channel = supabase
@@ -351,7 +419,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (pollInterval) clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [activeTurno?.id, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis]);
+  }, [activeTurno?.id, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis, fetchMovimentacoesAll]);
 
   const handlePrint = () => {
     window.print();
@@ -499,7 +567,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     }
   };
 
-  const handleSendWebhook = async () => {
+  const doSendWebhook = async () => {
     const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || (process.env as any).VITE_N8N_WEBHOOK_URL;
     if (!webhookUrl || webhookUrl === 'SUA_URL_DO_N8N_AQUI') {
       alert('URL do Webhook n8n não configurada. Verifique a variável VITE_N8N_WEBHOOK_URL nas configurações do projeto.');
@@ -512,38 +580,18 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       return;
     }
 
-    // Validação de campos obrigatórios
-    if (!supervisorName.trim() || !recebeuDe.trim()) {
-      setModalFeedback({ 
-        type: 'error', 
-        message: 'Os campos "Nome do Supervisor" e "Recebeu de" são obrigatórios para o envio do relatório.' 
-      });
-      return;
-    }
-
     setSending(true);
     try {
-      // Configurações do PDF idênticas ao que o usuário vê
       const opt = {
         margin: 10,
         filename: `Relatorio_AVSEC_${activeTurno?.letra || 'Turno'}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true,
-          letterRendering: true,
-          logging: false,
-          backgroundColor: '#ffffff'
-        },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4' as const, orientation: 'portrait' as const }
       };
 
-      // Gerar PDF como base64
       const pdfBase64 = await html2pdf().from(element).set(opt).outputPdf('datauristring');
-      
-      if (!pdfBase64 || pdfBase64.length < 100) {
-        throw new Error('Falha ao gerar o conteúdo do PDF. O arquivo gerado está vazio.');
-      }
+      if (!pdfBase64 || pdfBase64.length < 100) throw new Error('Falha ao gerar o conteúdo do PDF. O arquivo gerado está vazio.');
 
       const now = new Date();
       const hour = now.getHours();
@@ -557,29 +605,61 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         data: new Date().toLocaleDateString('pt-BR'),
         supervisor: supervisorName,
         recebeuDe: recebeuDe,
-        pdf_base64: pdfBase64, // O PDF REAL AQUI
+        pdf_base64: pdfBase64,
         filename: opt.filename,
         timestamp: new Date().toISOString()
       };
 
-      const res = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
+      const res = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
-      
-      setModalFeedback({ type: 'success', message: 'Relatório PDF enviado com sucesso para o e-mail via Webhook!' });
-      
-      // Quando clicar em enviar o relatorio o turno deve ser zerado (encerrado)
-      await encerrarTurno();
+
+      setPendingClose(true);
+      setModalFeedback({ type: 'success', message: 'Relatório enviado com sucesso! Clique em "Confirmar e Fechar Turno" para encerrar o turno e liberar a abertura do próximo.' });
     } catch (error: any) {
       console.error('Erro ao gerar/enviar PDF:', error);
       setModalFeedback({ type: 'error', message: `Erro ao enviar relatório: ${error.message}` });
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSendButtonClick = async () => {
+    if (!supervisorName.trim() || !recebeuDe.trim()) {
+      setModalFeedback({ type: 'error', message: 'Os campos "Nome do Supervisor" e "Recebeu de" são obrigatórios para o envio do relatório.' });
+      return;
+    }
+
+    const toCheck = await checkIntermediarios();
+    if (toCheck.length > 0) {
+      const initial: Record<string, { present: boolean; hora_saida: string }> = {};
+      toCheck.forEach((item: any) => { initial[item.agente_id] = { present: true, hora_saida: new Date().toTimeString().slice(0, 5) }; });
+      setIntermediarioDecisions(initial);
+      setIntermediariosToCheck(toCheck);
+      setClosureCheckOpen(true);
+      return;
+    }
+
+    await doSendWebhook();
+  };
+
+  const handleClosureCheckConfirm = async () => {
+    if (!activeTurno?.id) return;
+    try {
+      for (const [agenteId, decision] of Object.entries(intermediarioDecisions) as [string, { present: boolean; hora_saida: string }][]) {
+        if (decision.present) {
+          await supabase.schema('seguranca').from('efetivo_turno').update({ continua_proximo_turno: true }).eq('turno_id', activeTurno.id).eq('agente_id', agenteId);
+        } else {
+          const item = intermediariosToCheck.find((i: any) => i.agente_id === agenteId);
+          if (item?.movId) {
+            await supabase.schema('seguranca').from('agente_movimentacoes').update({ hora_saida: decision.hora_saida }).eq('id', item.movId);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao salvar decisões de intermediários:', err);
+    }
+    setClosureCheckOpen(false);
+    await doSendWebhook();
   };
 
   const now = new Date();
@@ -670,13 +750,22 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-medium text-text">Visão geral do turno</h2>
-          <button 
-            onClick={openPdfModal}
-            className="btn btn-primary btn-sm gap-2"
-          >
-            <FileText size={14} />
-            Gerar Relatório PDF
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsHistoricoOpen(true)}
+              className="btn btn-secondary btn-sm gap-2"
+            >
+              <History size={14} />
+              Histórico
+            </button>
+            <button
+              onClick={openPdfModal}
+              className="btn btn-primary btn-sm gap-2"
+            >
+              <FileText size={14} />
+              Gerar Relatório PDF
+            </button>
+          </div>
         </div>
         <p className="text-xs text-muted">{dateStr} · Turno {currentTurno}</p>
       </div>
@@ -981,13 +1070,14 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   paxFlow={paxFlow}
                   voos={voos}
                   canalResponsaveis={canalResponsaveis}
+                  movimentacoes={movimentacoesAll}
                 />
               </div>
             </div>
             <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
               <button onClick={() => setIsPdfModalOpen(false)} className="btn btn-secondary">Fechar</button>
-              <button 
-                onClick={handleSendWebhook} 
+              <button
+                onClick={handleSendButtonClick}
                 disabled={sending}
                 className="btn btn-secondary gap-2"
               >
@@ -1342,12 +1432,176 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             </p>
             
             <div className="pt-4">
-              <button 
-                onClick={() => setModalFeedback(null)} 
+              <button
+                onClick={async () => {
+                  setModalFeedback(null);
+                  if (pendingClose) {
+                    setPendingClose(false);
+                    setIsPdfModalOpen(false);
+                    await encerrarTurno();
+                  }
+                }}
                 className={cn("w-full py-2.5 rounded text-sm font-medium transition-all shadow-sm", modalFeedback.type === 'success' ? "bg-teal-600 hover:bg-teal-500 text-white" : "bg-red-600 hover:bg-red-500 text-white")}
               >
-                Okay, entendi
+                {pendingClose && modalFeedback.type === 'success' ? 'Confirmar e Fechar Turno' : 'Okay, entendi'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Verificação de Intermediários antes de fechar turno */}
+      {closureCheckOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[700] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-lg shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center">
+                <span className="text-lg">⇄</span>
+              </div>
+              <div>
+                <div className="text-sm font-medium">Verificação de Agentes Intermediários</div>
+                <div className="text-[11px] text-muted">Confirme a situação de cada agente antes de fechar o turno</div>
+              </div>
+            </div>
+            <div className="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
+              {intermediariosToCheck.map((item: any) => {
+                const dec = intermediarioDecisions[item.agente_id];
+                return (
+                  <div key={item.agente_id} className="p-3 bg-surface-2 border border-border-2 rounded space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-sm font-medium">{item.nome}</div>
+                        <div className="text-[11px] text-muted font-mono">{item.canalLabel} {item.hora_entrada ? `· entrada: ${item.hora_entrada}` : ''}</div>
+                      </div>
+                    </div>
+                    <div className="text-[11px] font-mono text-muted uppercase tracking-wider">Agente ainda está neste canal?</div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setIntermediarioDecisions(prev => ({ ...prev, [item.agente_id]: { ...prev[item.agente_id], present: true } }))}
+                        className={cn("flex-1 py-1.5 text-xs rounded border font-medium transition-all", dec?.present ? "bg-teal-500 text-white border-teal-500" : "border-border-2 text-muted hover:border-teal-500")}
+                      >
+                        Sim — continua no turno
+                      </button>
+                      <button
+                        onClick={() => setIntermediarioDecisions(prev => ({ ...prev, [item.agente_id]: { ...prev[item.agente_id], present: false } }))}
+                        className={cn("flex-1 py-1.5 text-xs rounded border font-medium transition-all", dec?.present === false ? "bg-red-500 text-white border-red-500" : "border-border-2 text-muted hover:border-red-500")}
+                      >
+                        Não — já saiu
+                      </button>
+                    </div>
+                    {dec?.present === false && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] text-muted uppercase font-mono shrink-0">Horário de saída:</label>
+                        <input
+                          type="time"
+                          value={dec.hora_saida}
+                          onChange={(e) => setIntermediarioDecisions(prev => ({ ...prev, [item.agente_id]: { ...prev[item.agente_id], hora_saida: e.target.value } }))}
+                          className="flex-1 bg-surface-3 border border-border-2 rounded px-2 py-1 text-xs focus:outline-none focus:border-red-400"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-4 px-5 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setClosureCheckOpen(false)} className="btn btn-secondary btn-sm">Cancelar</button>
+              <button
+                onClick={handleClosureCheckConfirm}
+                disabled={intermediariosToCheck.some((item: any) => intermediarioDecisions[item.agente_id]?.present === undefined)}
+                className="btn btn-primary btn-sm gap-2"
+              >
+                <Send size={13} />
+                Confirmar e Enviar Relatório
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Histórico de Relatórios */}
+      {isHistoricoOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[500] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History size={16} className="text-accent" />
+                <span className="text-sm font-medium">Histórico de Relatórios e Ocorrências</span>
+              </div>
+              <button onClick={() => setIsHistoricoOpen(false)} className="text-muted hover:text-text">✕</button>
+            </div>
+
+            {/* Filtros */}
+            <div className="p-4 border-b border-border bg-surface-2 grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Data início</label>
+                <input type="date" value={historicoFiltros.data_inicio} onChange={e => setHistoricoFiltros(p => ({ ...p, data_inicio: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Data fim</label>
+                <input type="date" value={historicoFiltros.data_fim} onChange={e => setHistoricoFiltros(p => ({ ...p, data_fim: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Turno</label>
+                <select value={historicoFiltros.turno} onChange={e => setHistoricoFiltros(p => ({ ...p, turno: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
+                  <option value="">Todos</option>
+                  {['A','B','C','D'].map(l => <option key={l} value={l}>Turno {l}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Canal</label>
+                <select value={historicoFiltros.canal} onChange={e => setHistoricoFiltros(p => ({ ...p, canal: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
+                  <option value="">Todos</option>
+                  {(['alfa','bravo','charlie','fox'] as Canal[]).map(c => <option key={c} value={c}>{CANAL_CONFIG[c].label}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Tipo</label>
+                <select value={historicoFiltros.tipo} onChange={e => setHistoricoFiltros(p => ({ ...p, tipo: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
+                  <option value="">Todos</option>
+                  {['teca','avsec','equipamento','receita','treinamento','passageiros','varredura','gpa','gdaf'].map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-5 flex justify-end">
+                <button onClick={buscarHistorico} disabled={isLoadingHistorico} className="btn btn-primary btn-sm gap-2">
+                  {isLoadingHistorico ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                  Buscar
+                </button>
+              </div>
+            </div>
+
+            {/* Resultados */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {isLoadingHistorico ? (
+                <div className="flex items-center justify-center py-12 gap-2 text-muted"><Loader2 size={20} className="animate-spin" /><span className="text-sm">Buscando...</span></div>
+              ) : historicoResultados.length === 0 ? (
+                <div className="text-center py-12 text-hint text-sm">
+                  <div className="text-3xl mb-2 opacity-40">🔍</div>
+                  {Object.values(historicoFiltros).some(Boolean) ? 'Nenhuma ocorrência encontrada com os filtros aplicados.' : 'Use os filtros acima e clique em Buscar.'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-[10px] font-mono text-muted uppercase tracking-widest pb-2 border-b border-border-2">{historicoResultados.length} ocorrência(s) encontrada(s)</div>
+                  {historicoResultados.map((o: any, i: number) => (
+                    <div key={i} className="p-3 bg-surface-2 border border-border-2 rounded">
+                      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase bg-accent/10 text-accent border border-accent/20">{o.tipo}</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-border">{CANAL_CONFIG[o.canal as Canal]?.label || o.canal}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-muted font-mono">
+                          <span>{o.turno?.data ? new Date(o.turno.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</span>
+                          <span className="opacity-40">·</span>
+                          <span>Turno {o.turno?.letra}</span>
+                          {o.hora && <><span className="opacity-40">·</span><span>{o.hora}</span></>}
+                        </div>
+                      </div>
+                      <p className="text-[12px] text-text leading-relaxed line-clamp-3">{o.descricao}</p>
+                      {o.agente && <div className="text-[10px] text-muted mt-1 font-mono">Envolvidos: {o.agente}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

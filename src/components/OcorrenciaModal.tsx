@@ -382,15 +382,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                       .filter(a => {
                         const nome = a.nome.toLowerCase();
                         const mat = a.matricula.toLowerCase();
-                        return nome.split(' ').some((w: string) => w.startsWith(term)) || mat.startsWith(term);
+                        return nome.startsWith(term) || mat.startsWith(term);
                       })
-                      .sort((a, b) => {
-                        const startsA = a.nome.toLowerCase().startsWith(term);
-                        const startsB = b.nome.toLowerCase().startsWith(term);
-                        if (startsA && !startsB) return -1;
-                        if (!startsA && startsB) return 1;
-                        return a.nome.localeCompare(b.nome);
-                      });
+                      .sort((a, b) => a.nome.localeCompare(b.nome));
 
                     return (
                       <div key={i} className={cn(
@@ -548,16 +542,9 @@ export default function OcorrenciaModal({ isOpen, onClose, onSave, canal, allAge
                           const term = searchAgente.toLowerCase();
                           const nome = a.nome.toLowerCase();
                           const mat = a.matricula.toLowerCase();
-                          return (nome.split(' ').some((w: string) => w.startsWith(term)) || mat.startsWith(term)) && !agentesEnvolvidos.includes(a.nome);
+                          return (nome.startsWith(term) || mat.startsWith(term)) && !agentesEnvolvidos.includes(a.nome);
                         })
-                        .sort((a, b) => {
-                          const term = searchAgente.toLowerCase();
-                          const startsA = a.nome.toLowerCase().startsWith(term);
-                          const startsB = b.nome.toLowerCase().startsWith(term);
-                          if (startsA && !startsB) return -1;
-                          if (!startsA && startsB) return 1;
-                          return a.nome.localeCompare(b.nome);
-                        })
+                        .sort((a, b) => a.nome.localeCompare(b.nome))
                         .map(a => (
                           <button
                             key={a.matricula}

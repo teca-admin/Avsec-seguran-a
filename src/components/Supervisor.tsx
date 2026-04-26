@@ -53,9 +53,14 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   // Historical reports
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
-  const [historicoFiltros, setHistoricoFiltros] = useState({ data_inicio: '', data_fim: '', turno: '', canal: '', tipo: '' });
+  const [historicoFiltros, setHistoricoFiltros] = useState({ turno: '', canal: '', tipo: '' });
   const [historicoResultados, setHistoricoResultados] = useState<any[]>([]);
   const [isLoadingHistorico, setIsLoadingHistorico] = useState(false);
+  // Calendar range picker state
+  const [histRangeStart, setHistRangeStart] = useState('');
+  const [histRangeEnd, setHistRangeEnd] = useState('');
+  const [calViewDate, setCalViewDate] = useState(() => new Date());
+  const [calHoverDay, setCalHoverDay] = useState('');
 
   const fetchMovimentacoesAll = useCallback(async (turnoId: string) => {
     try {
@@ -324,21 +329,53 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   }, [activeTurno?.id, allAgentes]);
 
   const buscarHistorico = async () => {
+    if (!histRangeStart) { alert('Selecione pelo menos um dia no calendário.'); return; }
     setIsLoadingHistorico(true);
     try {
-      let query = supabase.schema('seguranca').from('ocorrencias').select('*, turno:turnos(id, letra, data, fechado_em)').not('turno', 'is', null).order('ts', { ascending: false }).limit(200);
+      const dataFim = histRangeEnd || histRangeStart;
 
-      if (historicoFiltros.canal) query = query.eq('canal', historicoFiltros.canal);
-      if (historicoFiltros.tipo) query = query.eq('tipo', historicoFiltros.tipo);
+      // 1. Buscar turnos fechados no período
+      let turnoQuery = supabase.schema('seguranca').from('turnos')
+        .select('*')
+        .not('fechado_em', 'is', null)
+        .gte('data', histRangeStart)
+        .lte('data', dataFim)
+        .order('data', { ascending: false })
+        .order('aberto_em', { ascending: false })
+        .limit(30);
+      if (historicoFiltros.turno) turnoQuery = turnoQuery.eq('letra', historicoFiltros.turno);
 
-      const { data } = await query;
-      let resultados = (data || []).filter((o: any) => o.turno?.fechado_em);
+      const { data: turnos } = await turnoQuery;
+      if (!turnos || turnos.length === 0) { setHistoricoResultados([]); return; }
 
-      if (historicoFiltros.turno) resultados = resultados.filter((o: any) => o.turno?.letra === historicoFiltros.turno);
-      if (historicoFiltros.data_inicio) resultados = resultados.filter((o: any) => o.turno?.data >= historicoFiltros.data_inicio);
-      if (historicoFiltros.data_fim) resultados = resultados.filter((o: any) => o.turno?.data <= historicoFiltros.data_fim);
+      const turnoIds = turnos.map((t: any) => t.id);
 
-      setHistoricoResultados(resultados);
+      // 2. Buscar dados relacionados em paralelo
+      const [efetivoDados, ocorrenciasDados, responsaveisDados] = await Promise.all([
+        supabase.schema('seguranca').from('efetivo_turno').select('turno_id, agente_id, canal, presente, jornada').in('turno_id', turnoIds).eq('presente', true),
+        supabase.schema('seguranca').from('ocorrencias').select('turno_id, canal, tipo, hora, descricao, agente').in('turno_id', turnoIds).order('ts', { ascending: false }),
+        supabase.schema('seguranca').from('canal_responsavel').select('turno_id, canal, agente_id').in('turno_id', turnoIds)
+      ]);
+
+      // 3. Consolidar
+      const resultados = turnos.map((t: any) => ({
+        ...t,
+        efetivo: (efetivoDados.data || []).filter((e: any) => e.turno_id === t.id),
+        ocorrencias: (ocorrenciasDados.data || []).filter((o: any) => {
+          if (o.turno_id !== t.id) return false;
+          if (historicoFiltros.canal && o.canal !== historicoFiltros.canal) return false;
+          if (historicoFiltros.tipo && o.tipo !== historicoFiltros.tipo) return false;
+          return true;
+        }),
+        responsaveis: (responsaveisDados.data || []).filter((r: any) => r.turno_id === t.id)
+      }));
+
+      // Filtrar por canal no efetivo se necessário
+      const filtrados = historicoFiltros.canal
+        ? resultados.filter((t: any) => t.efetivo.some((e: any) => e.canal === historicoFiltros.canal) || t.ocorrencias.length > 0)
+        : resultados;
+
+      setHistoricoResultados(filtrados);
     } catch (err) {
       console.error('Erro ao buscar histórico:', err);
     } finally {
@@ -405,6 +442,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           buscarOcorrencias(turnoId);
           buscarDadosAdicionais(turnoId);
           buscarResponsaveis(turnoId);
+          fetchMovimentacoesAll(turnoId);
         }, 10000);
       } catch (err) {
         console.error('Erro na inicialização do Supervisor:', err);
@@ -669,6 +707,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   const openPdfModal = () => {
     fetchAgentes();
+    if (activeTurno?.id) fetchMovimentacoesAll(activeTurno.id);
     setIsPdfModalOpen(true);
   };
 
@@ -1520,92 +1559,250 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       )}
 
       {/* Modal: Histórico de Relatórios */}
-      {isHistoricoOpen && (
-        <div className="fixed inset-0 bg-black/80 z-[500] flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-            <div className="p-4 px-5 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History size={16} className="text-accent" />
-                <span className="text-sm font-medium">Histórico de Relatórios e Ocorrências</span>
-              </div>
-              <button onClick={() => setIsHistoricoOpen(false)} className="text-muted hover:text-text">✕</button>
-            </div>
+      {isHistoricoOpen && (() => {
+        // Calendar helpers (inline)
+        const daysInMonth = new Date(calViewDate.getFullYear(), calViewDate.getMonth() + 1, 0).getDate();
+        const firstDow = new Date(calViewDate.getFullYear(), calViewDate.getMonth(), 1).getDay();
+        const monthLabel = calViewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const toStr = (d: Date) => d.toISOString().split('T')[0];
+        const rangeLabel = histRangeStart
+          ? histRangeEnd && histRangeEnd !== histRangeStart
+            ? `${new Date(histRangeStart + 'T12:00').toLocaleDateString('pt-BR')} → ${new Date(histRangeEnd + 'T12:00').toLocaleDateString('pt-BR')}`
+            : new Date(histRangeStart + 'T12:00').toLocaleDateString('pt-BR')
+          : 'Selecione um período';
 
-            {/* Filtros */}
-            <div className="p-4 border-b border-border bg-surface-2 grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Data início</label>
-                <input type="date" value={historicoFiltros.data_inicio} onChange={e => setHistoricoFiltros(p => ({ ...p, data_inicio: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Data fim</label>
-                <input type="date" value={historicoFiltros.data_fim} onChange={e => setHistoricoFiltros(p => ({ ...p, data_fim: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Turno</label>
-                <select value={historicoFiltros.turno} onChange={e => setHistoricoFiltros(p => ({ ...p, turno: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
-                  <option value="">Todos</option>
-                  {['A','B','C','D'].map(l => <option key={l} value={l}>Turno {l}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Canal</label>
-                <select value={historicoFiltros.canal} onChange={e => setHistoricoFiltros(p => ({ ...p, canal: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
-                  <option value="">Todos</option>
-                  {(['alfa','bravo','charlie','fox'] as Canal[]).map(c => <option key={c} value={c}>{CANAL_CONFIG[c].label}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Tipo</label>
-                <select value={historicoFiltros.tipo} onChange={e => setHistoricoFiltros(p => ({ ...p, tipo: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
-                  <option value="">Todos</option>
-                  {['teca','avsec','equipamento','receita','treinamento','passageiros','varredura','gpa','gdaf'].map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
-                </select>
-              </div>
-              <div className="md:col-span-5 flex justify-end">
-                <button onClick={buscarHistorico} disabled={isLoadingHistorico} className="btn btn-primary btn-sm gap-2">
-                  {isLoadingHistorico ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                  Buscar
-                </button>
-              </div>
-            </div>
-
-            {/* Resultados */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {isLoadingHistorico ? (
-                <div className="flex items-center justify-center py-12 gap-2 text-muted"><Loader2 size={20} className="animate-spin" /><span className="text-sm">Buscando...</span></div>
-              ) : historicoResultados.length === 0 ? (
-                <div className="text-center py-12 text-hint text-sm">
-                  <div className="text-3xl mb-2 opacity-40">🔍</div>
-                  {Object.values(historicoFiltros).some(Boolean) ? 'Nenhuma ocorrência encontrada com os filtros aplicados.' : 'Use os filtros acima e clique em Buscar.'}
+        return (
+          <div className="fixed inset-0 bg-black/80 z-[500] flex items-center justify-center p-4">
+            <div className="bg-surface border border-border rounded-lg w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+              <div className="p-4 px-5 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History size={16} className="text-accent" />
+                  <span className="text-sm font-medium">Histórico de Relatórios e Ocorrências</span>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-[10px] font-mono text-muted uppercase tracking-widest pb-2 border-b border-border-2">{historicoResultados.length} ocorrência(s) encontrada(s)</div>
-                  {historicoResultados.map((o: any, i: number) => (
-                    <div key={i} className="p-3 bg-surface-2 border border-border-2 rounded">
-                      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase bg-accent/10 text-accent border border-accent/20">{o.tipo}</span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-border">{CANAL_CONFIG[o.canal as Canal]?.label || o.canal}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px] text-muted font-mono">
-                          <span>{o.turno?.data ? new Date(o.turno.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</span>
-                          <span className="opacity-40">·</span>
-                          <span>Turno {o.turno?.letra}</span>
-                          {o.hora && <><span className="opacity-40">·</span><span>{o.hora}</span></>}
-                        </div>
-                      </div>
-                      <p className="text-[12px] text-text leading-relaxed line-clamp-3">{o.descricao}</p>
-                      {o.agente && <div className="text-[10px] text-muted mt-1 font-mono">Envolvidos: {o.agente}</div>}
+                <button onClick={() => setIsHistoricoOpen(false)} className="text-muted hover:text-text">✕</button>
+              </div>
+
+              {/* Filtros + Calendário */}
+              <div className="border-b border-border bg-surface-2 flex flex-col md:flex-row gap-0">
+                {/* Calendário range picker */}
+                <div className="p-4 min-w-[260px] border-b md:border-b-0 md:border-r border-border-2">
+                  <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-2">Período selecionado</div>
+                  <div className="text-xs font-medium mb-3 text-accent font-mono">{rangeLabel}</div>
+
+                  {/* Month nav */}
+                  <div className="flex items-center justify-between mb-2">
+                    <button
+                      onClick={() => setCalViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-3 text-muted hover:text-text transition-colors text-sm"
+                    >‹</button>
+                    <span className="text-[11px] font-medium capitalize">{monthLabel}</span>
+                    <button
+                      onClick={() => setCalViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-3 text-muted hover:text-text transition-colors text-sm"
+                    >›</button>
+                  </div>
+
+                  {/* Day headers */}
+                  <div className="grid grid-cols-7 mb-1">
+                    {['D','S','T','Q','Q','S','S'].map((d, i) => (
+                      <div key={i} className="text-center text-[9px] text-muted py-0.5">{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Days */}
+                  <div className="grid grid-cols-7 gap-px">
+                    {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const dateStr = toStr(new Date(calViewDate.getFullYear(), calViewDate.getMonth(), day));
+                      const isStart = dateStr === histRangeStart;
+                      const isEnd = dateStr === histRangeEnd;
+                      const effectiveEnd = histRangeEnd || (calHoverDay && histRangeStart && !histRangeEnd ? calHoverDay : '');
+                      const inRange = histRangeStart && effectiveEnd && dateStr > histRangeStart && dateStr < effectiveEnd;
+                      return (
+                        <button
+                          key={day}
+                          className={cn(
+                            "h-7 text-[11px] rounded transition-colors w-full leading-none",
+                            (isStart || isEnd) ? "bg-accent text-white font-bold" :
+                            inRange ? "bg-accent/20 text-accent rounded-none" :
+                            "hover:bg-surface-3 text-text"
+                          )}
+                          onClick={() => {
+                            if (!histRangeStart || (histRangeStart && histRangeEnd)) {
+                              setHistRangeStart(dateStr);
+                              setHistRangeEnd('');
+                            } else if (dateStr === histRangeStart) {
+                              setHistRangeEnd(dateStr);
+                            } else if (dateStr < histRangeStart) {
+                              setHistRangeStart(dateStr);
+                            } else {
+                              setHistRangeEnd(dateStr);
+                            }
+                          }}
+                          onMouseEnter={() => setCalHoverDay(dateStr)}
+                          onMouseLeave={() => setCalHoverDay('')}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 text-[9px] text-muted leading-relaxed">
+                    Clique 1x para início · Clique 2x no mesmo dia para dia único · Clique em outro dia para o fim do período
+                  </div>
+                </div>
+
+                {/* Filtros adicionais */}
+                <div className="p-4 flex-1 space-y-3">
+                  <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-1">Filtros adicionais</div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Turno</label>
+                      <select value={historicoFiltros.turno} onChange={e => setHistoricoFiltros(p => ({ ...p, turno: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
+                        <option value="">Todos os turnos</option>
+                        {['A','B','C','D'].map(l => <option key={l} value={l}>Turno {l} · {TURNOS[l].inicio}–{TURNOS[l].fim}</option>)}
+                      </select>
                     </div>
-                  ))}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Canal</label>
+                      <select value={historicoFiltros.canal} onChange={e => setHistoricoFiltros(p => ({ ...p, canal: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
+                        <option value="">Todos os canais</option>
+                        {(['alfa','bravo','charlie','fox'] as Canal[]).map(c => <option key={c} value={c}>{CANAL_CONFIG[c].label} – {CANAL_CONFIG[c].name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-mono text-muted uppercase tracking-wider">Tipo de ocorrência</label>
+                      <select value={historicoFiltros.tipo} onChange={e => setHistoricoFiltros(p => ({ ...p, tipo: e.target.value }))} className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-accent">
+                        <option value="">Todos os tipos</option>
+                        {['teca','avsec','equipamento','receita','treinamento','passageiros','varredura','gpa','gdaf'].map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={buscarHistorico}
+                    disabled={isLoadingHistorico || !histRangeStart}
+                    className="w-full btn btn-primary btn-sm gap-2 mt-2"
+                  >
+                    {isLoadingHistorico ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                    {isLoadingHistorico ? 'Buscando...' : 'Buscar relatórios'}
+                  </button>
                 </div>
-              )}
+              </div>
+
+              {/* Resultados — visão completa por turno */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {isLoadingHistorico ? (
+                  <div className="flex items-center justify-center py-12 gap-2 text-muted">
+                    <Loader2 size={20} className="animate-spin" /><span className="text-sm">Buscando...</span>
+                  </div>
+                ) : historicoResultados.length === 0 ? (
+                  <div className="text-center py-12 text-hint text-sm">
+                    <div className="text-3xl mb-2 opacity-40">🗂</div>
+                    {histRangeStart ? 'Nenhum turno encontrado para os filtros aplicados.' : 'Selecione um período no calendário e clique em Buscar.'}
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[10px] font-mono text-muted uppercase tracking-widest pb-2 border-b border-border-2">
+                      {historicoResultados.length} turno(s) encontrado(s)
+                    </div>
+                    {historicoResultados.map((turnoData: any, i: number) => {
+                      const dataFormatada = turnoData.data
+                        ? new Date(turnoData.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+                        : '—';
+                      const turnoInfo = TURNOS[turnoData.letra];
+                      const canalFiltrado = historicoFiltros.canal as Canal | '';
+
+                      return (
+                        <div key={i} className="border border-border rounded-lg overflow-hidden">
+                          {/* Cabeçalho do Turno */}
+                          <div className="p-3 bg-surface-2 border-b border-border-2 flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <span className="font-mono text-sm font-bold text-accent">Turno {turnoData.letra}</span>
+                              <span className="text-muted mx-1.5">·</span>
+                              <span className="text-[13px] capitalize">{dataFormatada}</span>
+                            </div>
+                            <div className="text-[11px] text-muted font-mono">
+                              {turnoInfo?.inicio} – {turnoInfo?.fim}
+                              {turnoData.fechado_em && (
+                                <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-surface-3 border border-border">
+                                  fechado {new Date(turnoData.fechado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Efetivo por canal */}
+                          <div className="p-3 border-b border-border-2">
+                            <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-2">Efetivo em serviço</div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {(['alfa','bravo','charlie','fox'] as Canal[]).map(c => {
+                                if (canalFiltrado && canalFiltrado !== c) return null;
+                                const efetivoCanalArr = (turnoData.efetivo || []).filter((e: any) => e.canal === c);
+                                const responsavelRec = (turnoData.responsaveis || []).find((r: any) => r.canal === c);
+                                const responsavelNome = responsavelRec ? allAgentes.find((a: any) => a.matricula === responsavelRec.agente_id)?.nome : null;
+                                if (efetivoCanalArr.length === 0 && !responsavelNome) return null;
+                                return (
+                                  <div key={c} className="p-2 bg-surface-3 rounded border border-border-2">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <span className="text-[9px] font-mono font-bold text-text">{CANAL_CONFIG[c].label}</span>
+                                      <span className="text-[9px] text-muted">{efetivoCanalArr.length} ag.</span>
+                                    </div>
+                                    {responsavelNome && (
+                                      <div className="text-[9px] text-amber-600 font-mono mb-1 truncate" title={responsavelNome}>
+                                        Resp: {responsavelNome.split(' ')[0]}
+                                      </div>
+                                    )}
+                                    <div className="space-y-0.5">
+                                      {efetivoCanalArr.map((e: any) => {
+                                        const ag = allAgentes.find((a: any) => a.matricula === e.agente_id);
+                                        const isInter = e.jornada === 'intermediário';
+                                        return (
+                                          <div key={e.agente_id} className={cn("text-[10px] truncate leading-snug", isInter ? "text-amber-600" : "text-text")} title={ag?.nome}>
+                                            {isInter ? '⇄ ' : ''}{ag?.nome || e.agente_id}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Ocorrências */}
+                          {(turnoData.ocorrencias || []).length > 0 ? (
+                            <div className="p-3">
+                              <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-2">
+                                Ocorrências ({turnoData.ocorrencias.length})
+                              </div>
+                              <div className="space-y-1.5">
+                                {turnoData.ocorrencias.map((o: any, j: number) => (
+                                  <div key={j} className="p-2 bg-surface-2 border border-border-2 rounded">
+                                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                                      <span className="text-[9px] px-1.5 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded font-mono uppercase">{o.tipo}</span>
+                                      <span className="text-[9px] text-muted font-mono">{CANAL_CONFIG[o.canal as Canal]?.label || o.canal}</span>
+                                      {o.hora && <span className="text-[9px] text-muted font-mono">{o.hora}</span>}
+                                    </div>
+                                    <p className="text-[11px] text-text leading-relaxed line-clamp-2">{o.descricao}</p>
+                                    {o.agente && <div className="text-[9px] text-muted mt-0.5 font-mono">Env: {o.agente}</div>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-3 text-[11px] text-hint italic">Nenhuma ocorrência registrada neste turno.</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

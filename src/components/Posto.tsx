@@ -859,7 +859,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                         const term = responsavelSearchTerm.toLowerCase();
                         const nome = a.nome.toLowerCase();
                         const mat = a.matricula.toLowerCase();
-                        return nome.split(' ').some((w: string) => w.startsWith(term)) || mat.startsWith(term);
+                        return nome.startsWith(term) || mat.startsWith(term);
                       })
                       .slice(0, 8)
                       .map(a => (
@@ -931,32 +931,9 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     const term = searchTerm.toLowerCase();
                     const nome = a.nome.toLowerCase();
                     const mat = a.matricula.toLowerCase();
-                    
-                    const nomeWords = nome.split(' ');
-                    const matchesNome = nomeWords.some(word => word.startsWith(term));
-                    const matchesMat = mat.startsWith(term);
-                    
-                    return (matchesNome || matchesMat) && !presence[a.matricula]?.presente;
+                    return (nome.startsWith(term) || mat.startsWith(term)) && !presence[a.matricula]?.presente;
                   })
-                  .sort((a, b) => {
-                    const term = searchTerm.toLowerCase();
-                    const nomeA = a.nome.toLowerCase();
-                    const nomeB = b.nome.toLowerCase();
-                    const matA = a.matricula.toLowerCase();
-                    const matB = b.matricula.toLowerCase();
-
-                    const startsWithA = nomeA.startsWith(term);
-                    const startsWithB = nomeB.startsWith(term);
-                    if (startsWithA && !startsWithB) return -1;
-                    if (!startsWithA && startsWithB) return 1;
-
-                    const matStartsWithA = matA.startsWith(term);
-                    const matStartsWithB = matB.startsWith(term);
-                    if (matStartsWithA && !matStartsWithB) return -1;
-                    if (!matStartsWithA && matStartsWithB) return 1;
-
-                    return a.nome.localeCompare(b.nome);
-                  })
+                  .sort((a, b) => a.nome.localeCompare(b.nome))
                   .map(a => (
                     <div key={a.matricula} className="border-b border-border last:border-0">
                       <div className="flex items-center justify-between px-4 py-2 hover:bg-accent/5 transition-colors">

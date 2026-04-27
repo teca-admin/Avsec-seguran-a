@@ -385,13 +385,17 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   const encerrarTurno = async () => {
     if (!activeTurno) return;
-    
+
     try {
       setLoading(true);
       const { error } = await supabase
         .schema('seguranca')
         .from('turnos')
-        .update({ fechado_em: new Date().toISOString() })
+        .update({
+          fechado_em: new Date().toISOString(),
+          supervisor_nome: supervisorName || null,
+          recebeu_de: recebeuDe || null
+        })
         .eq('id', activeTurno.id);
         
       if (error) throw error;
@@ -1584,28 +1588,30 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
 
               {/* Filtros + Calendário */}
               <div className="border-b border-border bg-surface-2 flex flex-col md:flex-row gap-0">
-                {/* Calendário range picker */}
-                <div className="p-4 min-w-[260px] border-b md:border-b-0 md:border-r border-border-2">
-                  <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-2">Período selecionado</div>
-                  <div className="text-xs font-medium mb-3 text-accent font-mono">{rangeLabel}</div>
+                {/* Calendário range picker — compacto */}
+                <div className="p-3 w-full md:w-[230px] shrink-0 border-b md:border-b-0 md:border-r border-border-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[9px] font-mono text-muted uppercase tracking-wider">Período</div>
+                    <div className="text-[10px] font-medium text-accent font-mono truncate max-w-[140px]">{rangeLabel}</div>
+                  </div>
 
                   {/* Month nav */}
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1">
                     <button
                       onClick={() => setCalViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
-                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-3 text-muted hover:text-text transition-colors text-sm"
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface-3 text-muted hover:text-text transition-colors text-xs"
                     >‹</button>
-                    <span className="text-[11px] font-medium capitalize">{monthLabel}</span>
+                    <span className="text-[10px] font-medium capitalize">{monthLabel}</span>
                     <button
                       onClick={() => setCalViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
-                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-3 text-muted hover:text-text transition-colors text-sm"
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface-3 text-muted hover:text-text transition-colors text-xs"
                     >›</button>
                   </div>
 
                   {/* Day headers */}
-                  <div className="grid grid-cols-7 mb-1">
+                  <div className="grid grid-cols-7">
                     {['D','S','T','Q','Q','S','S'].map((d, i) => (
-                      <div key={i} className="text-center text-[9px] text-muted py-0.5">{d}</div>
+                      <div key={i} className="text-center text-[8px] text-muted py-0.5">{d}</div>
                     ))}
                   </div>
 
@@ -1623,7 +1629,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                         <button
                           key={day}
                           className={cn(
-                            "h-7 text-[11px] rounded transition-colors w-full leading-none",
+                            "h-5 text-[10px] rounded transition-colors w-full leading-none",
                             (isStart || isEnd) ? "bg-accent text-white font-bold" :
                             inRange ? "bg-accent/20 text-accent rounded-none" :
                             "hover:bg-surface-3 text-text"
@@ -1716,18 +1722,32 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                       return (
                         <div key={i} className="border border-border rounded-lg overflow-hidden">
                           {/* Cabeçalho do Turno */}
-                          <div className="p-3 bg-surface-2 border-b border-border-2 flex items-center justify-between flex-wrap gap-2">
+                          <div className="p-3 bg-surface-2 border-b border-border-2 flex items-start justify-between flex-wrap gap-2">
                             <div>
-                              <span className="font-mono text-sm font-bold text-accent">Turno {turnoData.letra}</span>
-                              <span className="text-muted mx-1.5">·</span>
-                              <span className="text-[13px] capitalize">{dataFormatada}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-sm font-bold text-accent">Turno {turnoData.letra}</span>
+                                <span className="text-muted">·</span>
+                                <span className="text-[13px] capitalize">{dataFormatada}</span>
+                              </div>
+                              {turnoData.supervisor_nome && (
+                                <div className="mt-1 flex items-center gap-3 text-[11px]">
+                                  <span className="text-muted font-mono">Supervisor:</span>
+                                  <span className="font-medium text-text">{turnoData.supervisor_nome}</span>
+                                  {turnoData.recebeu_de && (
+                                    <>
+                                      <span className="text-muted font-mono">· Recebeu de:</span>
+                                      <span className="font-medium text-text">{turnoData.recebeu_de}</span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <div className="text-[11px] text-muted font-mono">
+                            <div className="text-[11px] text-muted font-mono text-right">
                               {turnoInfo?.inicio} – {turnoInfo?.fim}
                               {turnoData.fechado_em && (
-                                <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-surface-3 border border-border">
+                                <div className="mt-0.5 text-[9px] px-1.5 py-0.5 rounded bg-surface-3 border border-border inline-block">
                                   fechado {new Date(turnoData.fechado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                                </div>
                               )}
                             </div>
                           </div>

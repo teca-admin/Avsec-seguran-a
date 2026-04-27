@@ -714,6 +714,15 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       const res = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
 
+      // Salva o nome do supervisor imediatamente após o envio bem-sucedido
+      if (activeTurno?.id) {
+        await supabase
+          .schema('seguranca')
+          .from('turnos')
+          .update({ supervisor_nome: supervisorName || null, recebeu_de: recebeuDe || null })
+          .eq('id', activeTurno.id);
+      }
+
       setPendingClose(true);
       setModalFeedback({ type: 'success', message: 'Relatório enviado com sucesso! Clique em "Confirmar e Fechar Turno" para encerrar o turno e liberar a abertura do próximo.' });
     } catch (error: any) {

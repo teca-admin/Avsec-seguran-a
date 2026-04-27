@@ -297,9 +297,72 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (createError) throw createError;
 
       if (newTurno) {
+        // Transferir intermediários do turno anterior para o novo turno
+        try {
+          const { data: lastTurno } = await supabase
+            .schema('seguranca')
+            .from('turnos')
+            .select('id')
+            .not('fechado_em', 'is', null)
+            .neq('id', newTurno.id)
+            .order('fechado_em', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (lastTurno) {
+            const { data: intermediarios } = await supabase
+              .schema('seguranca')
+              .from('efetivo_turno')
+              .select('agente_id, canal')
+              .eq('turno_id', lastTurno.id)
+              .eq('jornada', 'intermediário')
+              .eq('presente', true)
+              .eq('continua_proximo_turno', true);
+
+            if (intermediarios && intermediarios.length > 0) {
+              const agentIds = intermediarios.map((i: any) => i.agente_id);
+
+              const { data: movs } = await supabase
+                .schema('seguranca')
+                .from('agente_movimentacoes')
+                .select('agente_id, canal, hora_entrada')
+                .eq('turno_id', lastTurno.id)
+                .in('agente_id', agentIds)
+                .is('hora_saida', null);
+
+              for (const inter of intermediarios as any[]) {
+                await supabase
+                  .schema('seguranca')
+                  .from('efetivo_turno')
+                  .upsert({
+                    turno_id: newTurno.id,
+                    agente_id: inter.agente_id,
+                    canal: inter.canal,
+                    presente: true,
+                    jornada: 'intermediário',
+                    registrado_em: now.toISOString()
+                  }, { onConflict: 'turno_id,agente_id' });
+
+                const mov = (movs || []).find((m: any) => m.agente_id === inter.agente_id);
+                await supabase
+                  .schema('seguranca')
+                  .from('agente_movimentacoes')
+                  .insert({
+                    turno_id: newTurno.id,
+                    agente_id: inter.agente_id,
+                    canal: inter.canal,
+                    hora_entrada: mov?.hora_entrada || null
+                  });
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Aviso: erro ao transferir intermediários:', err);
+          // Não bloqueia a abertura do turno se isso falhar
+        }
+
         setActiveTurno(newTurno);
         onTurnoChange(newTurno.letra);
-        // Atualiza a tela silenciosamente sem reload
         await fetchActiveTurno();
       }
     } catch (error) {

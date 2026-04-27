@@ -282,12 +282,14 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
       else if (hour >= 18) currentShiftLetra = 'D';
 
+      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
       const { data: newTurno, error: createError } = await supabase
         .schema('seguranca')
         .from('turnos')
         .insert({
           letra: currentShiftLetra,
-          data: now.toISOString().split('T')[0],
+          data: localDate,
           aberto_em: now.toISOString(),
           canal: 'geral'
         })
@@ -521,7 +523,9 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         .eq('id', activeTurno.id);
         
       if (error) throw error;
-      // Buscar o status mais atualizado sem recarregar e dar refresh no listener local
+      // Limpa os campos do supervisor para o próximo líder
+      setSupervisorName('');
+      setRecebeuDe('');
       await fetchActiveTurno();
     } catch (err: any) {
       console.error('Erro ao encerrar turno:', err);

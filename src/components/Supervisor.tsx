@@ -61,6 +61,9 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [histRangeEnd, setHistRangeEnd] = useState('');
   const [calViewDate, setCalViewDate] = useState(() => new Date());
   const [calHoverDay, setCalHoverDay] = useState('');
+  // Detalhe do turno (PDF histórico)
+  const [historicoDetalhe, setHistoricoDetalhe] = useState<any | null>(null);
+  const [isLoadingDetalhe, setIsLoadingDetalhe] = useState(false);
 
   const fetchMovimentacoesAll = useCallback(async (turnoId: string) => {
     try {
@@ -327,6 +330,62 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       return [];
     }
   }, [activeTurno?.id, allAgentes]);
+
+  const buscarDetalhesTurno = async (turnoData: any) => {
+    setIsLoadingDetalhe(true);
+    try {
+      if (allAgentes.length === 0) await fetchAgentes();
+      const turnoId = turnoData.id;
+
+      const [efetivoDados, ocorrenciasDados, equipDados, paxDados, voosDados, responsaveisDados, movDados] = await Promise.all([
+        supabase.schema('seguranca').from('efetivo_turno').select('agente_id, canal, presente, jornada').eq('turno_id', turnoId).eq('presente', true),
+        supabase.schema('seguranca').from('ocorrencias').select('*').eq('turno_id', turnoId).order('ts', { ascending: false }),
+        supabase.schema('seguranca').from('equipamentos').select('*').eq('turno_id', turnoId),
+        supabase.schema('seguranca').from('fluxo_passageiros').select('*').eq('turno_id', turnoId).maybeSingle(),
+        supabase.schema('seguranca').from('voos_internacionais').select('*').eq('turno_id', turnoId),
+        supabase.schema('seguranca').from('canal_responsavel').select('canal, agente_id').eq('turno_id', turnoId),
+        supabase.schema('seguranca').from('agente_movimentacoes').select('*').eq('turno_id', turnoId)
+      ]);
+
+      const presence: Record<Canal, Record<string, { presente: boolean; jornada?: string }>> = {
+        alfa: {}, bravo: {}, charlie: {}, fox: {}, supervisor: {}
+      };
+      (efetivoDados.data || []).forEach((e: any) => {
+        const c = e.canal as Canal;
+        if (presence[c]) presence[c][e.agente_id] = { presente: true, jornada: e.jornada };
+      });
+
+      const canalResponsaveis: Record<Canal, string | null> = { alfa: null, bravo: null, charlie: null, fox: null, supervisor: null };
+      (responsaveisDados.data || []).forEach((r: any) => { if (r.canal in canalResponsaveis) canalResponsaveis[r.canal as Canal] = r.agente_id; });
+
+      const ocorrencias = (ocorrenciasDados.data || []).map((o: any) => ({
+        id: o.id, canal: o.canal, turnoId: o.turno_id, tipo: o.tipo, hora: o.hora,
+        hora_inicio: o.hora_inicio, hora_fim: o.hora_fim, desc: o.descricao, agente: o.agente,
+        ts: o.ts, imagem_url: o.imagem_url, apacs: o.apacs,
+        passageiro_nome: o.passageiro_nome, passageiro_cpf: o.passageiro_cpf, voo: o.voo
+      }));
+
+      const equipamentos = (equipDados.data || []).map((e: any) => ({
+        tipo: e.tipo, data: e.data_defeito, descricao: e.descricao, local: e.local, os: e.os, prazo: e.prazo
+      }));
+
+      const paxFlow = paxDados.data ? {
+        total: paxDados.data.total, pico: paxDados.data.pico, horaPico: paxDados.data.hora_pico,
+        obs: paxDados.data.obs, img1: paxDados.data.img1, img2: paxDados.data.img2, texto: paxDados.data.texto
+      } : undefined;
+
+      const voos = (voosDados.data || []).map((v: any) => ({
+        id: v.id, numero: v.numero, horario: v.horario, modulo: v.modulo,
+        apf: v.apf, pax: v.pax, hora_inicio: v.hora_inicio, hora_fim: v.hora_fim
+      }));
+
+      setHistoricoDetalhe({ turnoData, presence, ocorrencias, equipamentos, paxFlow, voos, canalResponsaveis, movimentacoes: movDados.data || [] });
+    } catch (err) {
+      console.error('Erro ao buscar detalhes do turno:', err);
+    } finally {
+      setIsLoadingDetalhe(false);
+    }
+  };
 
   const buscarHistorico = async () => {
     if (!histRangeStart) { alert('Selecione pelo menos um dia no calendário.'); return; }
@@ -1712,107 +1771,43 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                     <div className="text-[10px] font-mono text-muted uppercase tracking-widest pb-2 border-b border-border-2">
                       {historicoResultados.length} turno(s) encontrado(s)
                     </div>
-                    {historicoResultados.map((turnoData: any, i: number) => {
-                      const dataFormatada = turnoData.data
-                        ? new Date(turnoData.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+                    {historicoResultados.map((t: any, i: number) => {
+                      const dataFormatada = t.data
+                        ? new Date(t.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
                         : '—';
-                      const turnoInfo = TURNOS[turnoData.letra];
-                      const canalFiltrado = historicoFiltros.canal as Canal | '';
+                      const turnoInfo = TURNOS[t.letra];
+                      const totalOcorr = (t.ocorrencias || []).length;
 
                       return (
-                        <div key={i} className="border border-border rounded-lg overflow-hidden">
-                          {/* Cabeçalho do Turno */}
-                          <div className="p-3 bg-surface-2 border-b border-border-2 flex items-start justify-between flex-wrap gap-2">
-                            <div>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-mono text-sm font-bold text-accent">Turno {turnoData.letra}</span>
-                                <span className="text-muted">·</span>
-                                <span className="text-[13px] capitalize">{dataFormatada}</span>
-                              </div>
-                              {turnoData.supervisor_nome && (
-                                <div className="mt-1 flex items-center gap-3 text-[11px]">
-                                  <span className="text-muted font-mono">Supervisor:</span>
-                                  <span className="font-medium text-text">{turnoData.supervisor_nome}</span>
-                                  {turnoData.recebeu_de && (
-                                    <>
-                                      <span className="text-muted font-mono">· Recebeu de:</span>
-                                      <span className="font-medium text-text">{turnoData.recebeu_de}</span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
+                        <div key={i} className="flex items-center justify-between gap-3 p-3 bg-surface-2 border border-border-2 rounded-lg hover:border-border transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-sm font-bold text-accent">Turno {t.letra}</span>
+                              <span className="text-muted text-xs">·</span>
+                              <span className="text-[13px] capitalize truncate">{dataFormatada}</span>
+                              <span className="text-[9px] font-mono text-muted">{turnoInfo?.inicio}–{turnoInfo?.fim}</span>
                             </div>
-                            <div className="text-[11px] text-muted font-mono text-right">
-                              {turnoInfo?.inicio} – {turnoInfo?.fim}
-                              {turnoData.fechado_em && (
-                                <div className="mt-0.5 text-[9px] px-1.5 py-0.5 rounded bg-surface-3 border border-border inline-block">
-                                  fechado {new Date(turnoData.fechado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </div>
+                            <div className="mt-0.5 flex items-center gap-2 flex-wrap text-[11px] text-muted">
+                              {t.supervisor_nome
+                                ? <span><b className="text-text">{t.supervisor_nome}</b> · Recebeu de: {t.recebeu_de || '—'}</span>
+                                : <span className="italic">Supervisor não registrado</span>
+                              }
+                              <span className="opacity-30">|</span>
+                              <span>{totalOcorr} ocorrência{totalOcorr !== 1 ? 's' : ''}</span>
+                              {t.fechado_em && (
+                                <><span className="opacity-30">|</span>
+                                <span>fechado às {new Date(t.fechado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></>
                               )}
                             </div>
                           </div>
-
-                          {/* Efetivo por canal */}
-                          <div className="p-3 border-b border-border-2">
-                            <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-2">Efetivo em serviço</div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                              {(['alfa','bravo','charlie','fox'] as Canal[]).map(c => {
-                                if (canalFiltrado && canalFiltrado !== c) return null;
-                                const efetivoCanalArr = (turnoData.efetivo || []).filter((e: any) => e.canal === c);
-                                const responsavelRec = (turnoData.responsaveis || []).find((r: any) => r.canal === c);
-                                const responsavelNome = responsavelRec ? allAgentes.find((a: any) => a.matricula === responsavelRec.agente_id)?.nome : null;
-                                if (efetivoCanalArr.length === 0 && !responsavelNome) return null;
-                                return (
-                                  <div key={c} className="p-2 bg-surface-3 rounded border border-border-2">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                      <span className="text-[9px] font-mono font-bold text-text">{CANAL_CONFIG[c].label}</span>
-                                      <span className="text-[9px] text-muted">{efetivoCanalArr.length} ag.</span>
-                                    </div>
-                                    {responsavelNome && (
-                                      <div className="text-[9px] text-amber-600 font-mono mb-1 truncate" title={responsavelNome}>
-                                        Resp: {responsavelNome.split(' ')[0]}
-                                      </div>
-                                    )}
-                                    <div className="space-y-0.5">
-                                      {efetivoCanalArr.map((e: any) => {
-                                        const ag = allAgentes.find((a: any) => a.matricula === e.agente_id);
-                                        const isInter = e.jornada === 'intermediário';
-                                        return (
-                                          <div key={e.agente_id} className={cn("text-[10px] truncate leading-snug", isInter ? "text-amber-600" : "text-text")} title={ag?.nome}>
-                                            {isInter ? '⇄ ' : ''}{ag?.nome || e.agente_id}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Ocorrências */}
-                          {(turnoData.ocorrencias || []).length > 0 ? (
-                            <div className="p-3">
-                              <div className="text-[9px] font-mono text-muted uppercase tracking-wider mb-2">
-                                Ocorrências ({turnoData.ocorrencias.length})
-                              </div>
-                              <div className="space-y-1.5">
-                                {turnoData.ocorrencias.map((o: any, j: number) => (
-                                  <div key={j} className="p-2 bg-surface-2 border border-border-2 rounded">
-                                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                      <span className="text-[9px] px-1.5 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded font-mono uppercase">{o.tipo}</span>
-                                      <span className="text-[9px] text-muted font-mono">{CANAL_CONFIG[o.canal as Canal]?.label || o.canal}</span>
-                                      {o.hora && <span className="text-[9px] text-muted font-mono">{o.hora}</span>}
-                                    </div>
-                                    <p className="text-[11px] text-text leading-relaxed line-clamp-2">{o.descricao}</p>
-                                    {o.agente && <div className="text-[9px] text-muted mt-0.5 font-mono">Env: {o.agente}</div>}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="p-3 text-[11px] text-hint italic">Nenhuma ocorrência registrada neste turno.</div>
-                          )}
+                          <button
+                            onClick={() => buscarDetalhesTurno(t)}
+                            disabled={isLoadingDetalhe}
+                            className="btn btn-primary btn-sm gap-1.5 shrink-0"
+                          >
+                            {isLoadingDetalhe ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                            Ver Relatório PDF
+                          </button>
                         </div>
                       );
                     })}
@@ -1823,6 +1818,61 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           </div>
         );
       })()}
+
+      {/* Modal: PDF do turno histórico */}
+      {historicoDetalhe && (
+        <div className="fixed inset-0 bg-black/90 z-[600] flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 px-5 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setHistoricoDetalhe(null)}
+                  className="text-muted hover:text-text transition-colors flex items-center gap-1.5 text-sm"
+                >
+                  ← Voltar
+                </button>
+                <span className="text-muted opacity-30">|</span>
+                <span className="text-sm font-medium">
+                  Relatório — Turno {historicoDetalhe.turnoData.letra}
+                  {historicoDetalhe.turnoData.data && (
+                    <span className="text-muted font-normal ml-1.5">
+                      · {new Date(historicoDetalhe.turnoData.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <button
+                onClick={() => window.print()}
+                className="btn btn-primary btn-sm gap-2"
+              >
+                <FileText size={14} />
+                Imprimir / Salvar PDF
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-surface-3">
+              <div className="bg-white shadow-lg mx-auto">
+                <PdfReport
+                  turno={historicoDetalhe.turnoData.letra}
+                  data={historicoDetalhe.turnoData.data
+                    ? new Date(historicoDetalhe.turnoData.data + 'T12:00:00').toLocaleDateString('pt-BR')
+                    : new Date().toLocaleDateString('pt-BR')}
+                  supervisor={historicoDetalhe.turnoData.supervisor_nome || '—'}
+                  recebeuDe={historicoDetalhe.turnoData.recebeu_de || '—'}
+                  ocorrencias={historicoDetalhe.ocorrencias}
+                  presence={historicoDetalhe.presence}
+                  allAgentes={allAgentes}
+                  equipamentos={historicoDetalhe.equipamentos}
+                  paxFlow={historicoDetalhe.paxFlow}
+                  voos={historicoDetalhe.voos}
+                  canalResponsaveis={historicoDetalhe.canalResponsaveis}
+                  movimentacoes={historicoDetalhe.movimentacoes}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

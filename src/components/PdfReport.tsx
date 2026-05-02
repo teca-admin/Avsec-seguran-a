@@ -1,6 +1,6 @@
 import React from 'react';
-import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
-import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
+import { Canal, CANAL_CONFIG, TURNOS, ALTERNATIVAS_CONFIG } from '../constants';
+import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional, AlternativaHistorico } from '../types';
 
 interface PdfReportProps {
   turno: string;
@@ -15,10 +15,12 @@ interface PdfReportProps {
   voos?: VooInternacional[];
   canalResponsaveis?: Record<Canal, string | null>;
   movimentacoes?: any[];
+  alternativas?: Record<string, number>;
+  alternativasHistorico?: AlternativaHistorico[];
 }
 
 export default function PdfReport({
-  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos, canalResponsaveis, movimentacoes = []
+  turno, data, supervisor, recebeuDe, ocorrencias, presence, allAgentes, paxFlow, equipamentos, voos, canalResponsaveis, movimentacoes = [], alternativas = {}, alternativasHistorico = []
 }: PdfReportProps) {
   const t = TURNOS[turno];
 
@@ -347,17 +349,27 @@ export default function PdfReport({
         <div className="section-content">
           {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map(c => {
             const config = CANAL_CONFIG[c];
+            const altCfg = ALTERNATIVAS_CONFIG[c];
+            const altAtual = alternativas[c] ?? altCfg.padrao;
+            const altLabel = altCfg.label[altAtual] || `Alternativa ${altAtual}`;
+            const altDescricao = altCfg.descricao[altAtual] || '';
             const presentes = allAgentes.filter(a => presence[c]?.[a.matricula]?.presente);
             const hasIntermediario = presentes.some(a => presence[c]?.[a.matricula]?.jornada === 'intermediário');
             const responsavelId = canalResponsaveis?.[c];
             const responsavelNome = responsavelId ? (allAgentes.find(a => a.matricula === responsavelId)?.nome || responsavelId) : null;
-            
+
             if (presentes.length === 0) return null;
 
             return (
               <div key={c} style={{ marginBottom: '20px' }}>
                 <div className="channel-header">
-                  <span>{config.name}</span>
+                  <div>
+                    <div>{config.name}</div>
+                    <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#b91c1c', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                      {altLabel} – IS107
+                    </div>
+                    <div style={{ fontSize: '8px', fontWeight: 'normal', color: '#7f1d1d', marginTop: '1px' }}>{altDescricao}</div>
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                     <span style={{ fontSize: '9px', fontWeight: 'normal' }}>Total: {presentes.length} agentes</span>
                     {responsavelNome && (
@@ -398,6 +410,39 @@ export default function PdfReport({
               </div>
             );
           })}
+          {alternativasHistorico.length > 0 && (
+            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '4px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#9a3412', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                Histórico de Alterações de Alternativas
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', backgroundColor: '#ffedd5', border: '1px solid #fed7aa', color: '#7c2d12' }}>Horário</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', backgroundColor: '#ffedd5', border: '1px solid #fed7aa', color: '#7c2d12' }}>Canal</th>
+                    <th style={{ textAlign: 'center', padding: '4px 8px', backgroundColor: '#ffedd5', border: '1px solid #fed7aa', color: '#7c2d12' }}>De</th>
+                    <th style={{ textAlign: 'center', padding: '4px 8px', backgroundColor: '#ffedd5', border: '1px solid #fed7aa', color: '#7c2d12' }}>Para</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alternativasHistorico.map((h, i) => (
+                    <tr key={i}>
+                      <td style={{ padding: '4px 8px', border: '1px solid #fed7aa', fontFamily: 'monospace' }}>
+                        {new Date(h.alterado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #fed7aa' }}>{CANAL_CONFIG[h.canal as Canal]?.name || h.canal}</td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #fed7aa', textAlign: 'center', color: '#6b7280' }}>
+                        {h.alternativa_anterior != null ? `Alt. ${h.alternativa_anterior}` : '—'}
+                      </td>
+                      <td style={{ padding: '4px 8px', border: '1px solid #fed7aa', textAlign: 'center', fontWeight: 'bold', color: '#9a3412' }}>
+                        Alt. {h.alternativa_nova}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

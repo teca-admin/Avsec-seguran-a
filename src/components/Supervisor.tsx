@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Canal, CANAL_CONFIG, TURNOS } from '../constants';
+import { Canal, CANAL_CONFIG, TURNOS, ALTERNATIVAS_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
 import { Users, ClipboardList, Activity, FileText, Send, Loader2, HardDrive, Plane, Clock, Plus, History, Search, ChevronDown } from 'lucide-react';
 import PdfReport from './PdfReport';
-import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional } from '../types';
+import { Ocorrencia, PaxFlow, EquipamentoDefeito, VooInternacional, AlternativaHistorico } from '../types';
 import { supabase } from '../lib/supabase';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -51,6 +51,15 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
   const [intermediarioDecisions, setIntermediarioDecisions] = useState<Record<string, { present: boolean; hora_saida: string }>>({});
   const [movimentacoesAll, setMovimentacoesAll] = useState<any[]>([]);
 
+  // Alternativas IS107
+  const [alternativasPorCanal, setAlternativasPorCanal] = useState<Record<string, number>>({
+    alfa: 2, bravo: 5, charlie: 8, fox: 8
+  });
+  const [alternativasHistorico, setAlternativasHistorico] = useState<AlternativaHistorico[]>([]);
+  const [showAlternativaModal, setShowAlternativaModal] = useState(false);
+  const [alternativasSelecionadas, setAlternativasSelecionadas] = useState<Record<string, number>>({ alfa: 2, bravo: 5 });
+  const [alterandoAlternativa, setAlterandoAlternativa] = useState<string | null>(null);
+
   // Historical reports
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
   const [historicoFiltros, setHistoricoFiltros] = useState({ turno: '', canal: '', tipo: '' });
@@ -71,6 +80,28 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (data) setMovimentacoesAll(data);
     } catch (err) {
       console.error('Erro ao buscar movimentações:', err);
+    }
+  }, []);
+
+  const fetchAlternativas = useCallback(async (turnoId: string) => {
+    try {
+      const { data } = await supabase.schema('seguranca').from('turno_alternativa').select('*').eq('turno_id', turnoId);
+      if (data && data.length > 0) {
+        const map: Record<string, number> = { alfa: 2, bravo: 5, charlie: 8, fox: 8 };
+        data.forEach((r: any) => { map[r.canal] = r.alternativa; });
+        setAlternativasPorCanal(map);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar alternativas:', err);
+    }
+  }, []);
+
+  const fetchAlternativasHistorico = useCallback(async (turnoId: string) => {
+    try {
+      const { data } = await supabase.schema('seguranca').from('alternativa_historico').select('*').eq('turno_id', turnoId).order('alterado_em', { ascending: true });
+      if (data) setAlternativasHistorico(data as AlternativaHistorico[]);
+    } catch (err) {
+      console.error('Erro ao buscar histórico de alternativas:', err);
     }
   }, []);
 
@@ -105,6 +136,31 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       console.error('Erro ao buscar responsáveis:', err);
     }
   }, []);
+
+  const handleAlterarAlternativa = async (canal: string, novaAlternativa: number) => {
+    if (!activeTurno?.id) return;
+    const anterior = alternativasPorCanal[canal];
+    if (anterior === novaAlternativa) { setAlterandoAlternativa(null); return; }
+    try {
+      await supabase.schema('seguranca').from('turno_alternativa').upsert(
+        { turno_id: activeTurno.id, canal, alternativa: novaAlternativa, definido_em: new Date().toISOString() },
+        { onConflict: 'turno_id,canal' }
+      );
+      await supabase.schema('seguranca').from('alternativa_historico').insert({
+        turno_id: activeTurno.id,
+        canal,
+        alternativa_anterior: anterior,
+        alternativa_nova: novaAlternativa,
+        alterado_em: new Date().toISOString()
+      });
+      setAlternativasPorCanal(prev => ({ ...prev, [canal]: novaAlternativa }));
+      await fetchAlternativasHistorico(activeTurno.id);
+    } catch (err) {
+      console.error('Erro ao alterar alternativa:', err);
+    } finally {
+      setAlterandoAlternativa(null);
+    }
+  };
 
   const buscarEfetivo = useCallback(async (turnoId: string) => {
     try {
@@ -270,13 +326,18 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
     return null;
   }, [onTurnoChange]);
 
-  const handleAbrirTurno = async () => {
+  const handleAbrirTurno = () => {
+    setAlternativasSelecionadas({ alfa: 2, bravo: 5 });
+    setShowAlternativaModal(true);
+  };
+
+  const handleConfirmarAbertura = async () => {
+    setShowAlternativaModal(false);
     try {
       setIsOpeningTurno(true);
       const now = new Date();
       const hour = now.getHours();
-      
-      // Determinar a letra do turno baseada no horário atual
+
       let currentShiftLetra = 'A';
       if (hour >= 6 && hour < 12) currentShiftLetra = 'B';
       else if (hour >= 12 && hour < 18) currentShiftLetra = 'C';
@@ -363,6 +424,25 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           // Não bloqueia a abertura do turno se isso falhar
         }
 
+        // Salvar alternativas selecionadas para cada canal
+        try {
+          const altInicial = [
+            { turno_id: newTurno.id, canal: 'alfa', alternativa: alternativasSelecionadas.alfa, definido_em: now.toISOString() },
+            { turno_id: newTurno.id, canal: 'bravo', alternativa: alternativasSelecionadas.bravo, definido_em: now.toISOString() },
+            { turno_id: newTurno.id, canal: 'charlie', alternativa: 8, definido_em: now.toISOString() },
+            { turno_id: newTurno.id, canal: 'fox', alternativa: 8, definido_em: now.toISOString() },
+          ];
+          await supabase.schema('seguranca').from('turno_alternativa').insert(altInicial);
+          setAlternativasPorCanal({
+            alfa: alternativasSelecionadas.alfa,
+            bravo: alternativasSelecionadas.bravo,
+            charlie: 8,
+            fox: 8
+          });
+        } catch (err) {
+          console.error('Aviso: erro ao salvar alternativas:', err);
+        }
+
         setActiveTurno(newTurno);
         onTurnoChange(newTurno.letra);
         await fetchActiveTurno();
@@ -402,14 +482,16 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (allAgentes.length === 0) await fetchAgentes();
       const turnoId = turnoData.id;
 
-      const [efetivoDados, ocorrenciasDados, equipDados, paxDados, voosDados, responsaveisDados, movDados] = await Promise.all([
+      const [efetivoDados, ocorrenciasDados, equipDados, paxDados, voosDados, responsaveisDados, movDados, altDados, altHistDados] = await Promise.all([
         supabase.schema('seguranca').from('efetivo_turno').select('agente_id, canal, presente, jornada').eq('turno_id', turnoId).eq('presente', true),
         supabase.schema('seguranca').from('ocorrencias').select('*').eq('turno_id', turnoId).order('ts', { ascending: false }),
         supabase.schema('seguranca').from('equipamentos').select('*').eq('turno_id', turnoId),
         supabase.schema('seguranca').from('fluxo_passageiros').select('*').eq('turno_id', turnoId).maybeSingle(),
         supabase.schema('seguranca').from('voos_internacionais').select('*').eq('turno_id', turnoId),
         supabase.schema('seguranca').from('canal_responsavel').select('canal, agente_id').eq('turno_id', turnoId),
-        supabase.schema('seguranca').from('agente_movimentacoes').select('*').eq('turno_id', turnoId)
+        supabase.schema('seguranca').from('agente_movimentacoes').select('*').eq('turno_id', turnoId),
+        supabase.schema('seguranca').from('turno_alternativa').select('*').eq('turno_id', turnoId),
+        supabase.schema('seguranca').from('alternativa_historico').select('*').eq('turno_id', turnoId).order('alterado_em', { ascending: true }),
       ]);
 
       const presence: Record<Canal, Record<string, { presente: boolean; jornada?: string }>> = {
@@ -444,7 +526,10 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
         apf: v.apf, pax: v.pax, hora_inicio: v.hora_inicio, hora_fim: v.hora_fim
       }));
 
-      setHistoricoDetalhe({ turnoData, presence, ocorrencias, equipamentos, paxFlow, voos, canalResponsaveis, movimentacoes: movDados.data || [] });
+      const altMap: Record<string, number> = { alfa: 2, bravo: 5, charlie: 8, fox: 8 };
+      (altDados.data || []).forEach((r: any) => { altMap[r.canal] = r.alternativa; });
+
+      setHistoricoDetalhe({ turnoData, presence, ocorrencias, equipamentos, paxFlow, voos, canalResponsaveis, movimentacoes: movDados.data || [], alternativas: altMap, alternativasHistorico: altHistDados.data || [] });
     } catch (err) {
       console.error('Erro ao buscar detalhes do turno:', err);
     } finally {
@@ -554,7 +639,9 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           buscarOcorrencias(turnoId),
           buscarDadosAdicionais(turnoId),
           buscarResponsaveis(turnoId),
-          fetchMovimentacoesAll(turnoId)
+          fetchMovimentacoesAll(turnoId),
+          fetchAlternativas(turnoId),
+          fetchAlternativasHistorico(turnoId),
         ]);
 
         channel = supabase
@@ -565,6 +652,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'fluxo_passageiros' }, () => buscarDadosAdicionais(turnoId))
           .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'voos_internacionais' }, () => buscarDadosAdicionais(turnoId))
           .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'canal_responsavel' }, () => buscarResponsaveis(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'turno_alternativa' }, () => fetchAlternativas(turnoId))
+          .on('postgres_changes', { event: '*', schema: 'seguranca', table: 'alternativa_historico' }, () => fetchAlternativasHistorico(turnoId))
           .subscribe();
 
         pollInterval = setInterval(() => {
@@ -573,6 +662,8 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
           buscarDadosAdicionais(turnoId);
           buscarResponsaveis(turnoId);
           fetchMovimentacoesAll(turnoId);
+          fetchAlternativas(turnoId);
+          fetchAlternativasHistorico(turnoId);
         }, 10000);
       } catch (err) {
         console.error('Erro na inicialização do Supervisor:', err);
@@ -587,7 +678,7 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
       if (pollInterval) clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [activeTurno?.id, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis, fetchMovimentacoesAll]);
+  }, [activeTurno?.id, buscarEfetivo, buscarOcorrencias, buscarDadosAdicionais, buscarResponsaveis, fetchMovimentacoesAll, fetchAlternativas, fetchAlternativasHistorico]);
 
   const handlePrint = () => {
     window.print();
@@ -846,7 +937,10 @@ export default function Supervisor({ turno: initialTurno, onTurnoChange }: Super
 
   const openPdfModal = () => {
     fetchAgentes();
-    if (activeTurno?.id) fetchMovimentacoesAll(activeTurno.id);
+    if (activeTurno?.id) {
+      fetchMovimentacoesAll(activeTurno.id);
+      fetchAlternativasHistorico(activeTurno.id);
+    }
     setIsPdfModalOpen(true);
   };
 
@@ -895,7 +989,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
         <p className="text-sm text-hint max-w-xs mb-8">
           O turno anterior foi encerrado. Clique no botão abaixo para iniciar o novo turno e liberar o acesso para os postos.
         </p>
-        <button 
+        <button
           onClick={handleAbrirTurno}
           disabled={isOpeningTurno}
           className="btn btn-primary px-8 py-3 gap-2 text-sm shadow-lg shadow-accent/20"
@@ -907,6 +1001,57 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           )}
           {isOpeningTurno ? 'Iniciando...' : 'Iniciar Novo Turno'}
         </button>
+
+        {/* Modal de seleção de alternativas ao abrir turno */}
+        {showAlternativaModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="bg-surface rounded-xl border border-border shadow-2xl w-full max-w-md p-6 text-left">
+              <h3 className="text-base font-semibold text-text mb-1">Definir Alternativas IS107</h3>
+              <p className="text-xs text-muted mb-5">Selecione a alternativa ativa para cada canal neste turno. Canal Charlie e Fox são fixos na Alternativa 8.</p>
+
+              <div className="space-y-4">
+                {(['alfa', 'bravo'] as const).map(canal => {
+                  const cfg = ALTERNATIVAS_CONFIG[canal];
+                  return (
+                    <div key={canal}>
+                      <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1.5">{CANAL_CONFIG[canal].name}</div>
+                      <div className="flex gap-2">
+                        {cfg.alternativas.map(alt => (
+                          <button
+                            key={alt}
+                            onClick={() => setAlternativasSelecionadas(prev => ({ ...prev, [canal]: alt }))}
+                            className={`flex-1 rounded-lg border p-3 text-left transition-colors ${alternativasSelecionadas[canal] === alt ? 'border-accent bg-accent/10 text-accent' : 'border-border-2 text-muted hover:border-border'}`}
+                          >
+                            <div className="text-sm font-semibold">{cfg.label[alt]}</div>
+                            <div className="text-[10px] mt-0.5">{cfg.descricao[alt]}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {(['charlie', 'fox'] as const).map(canal => (
+                  <div key={canal}>
+                    <div className="text-xs font-mono uppercase tracking-wider text-muted mb-1.5">{CANAL_CONFIG[canal].name}</div>
+                    <div className="rounded-lg border border-border-2 p-3 bg-surface-2">
+                      <div className="text-sm font-semibold text-text">Alternativa 8 <span className="text-[10px] font-normal text-muted ml-1">(automático)</span></div>
+                      <div className="text-[10px] text-muted mt-0.5">{ALTERNATIVAS_CONFIG[canal].descricao[8]}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setShowAlternativaModal(false)} className="btn btn-secondary flex-1">Cancelar</button>
+                <button onClick={handleConfirmarAbertura} className="btn btn-primary flex-1 gap-2">
+                  <Plus size={14} />
+                  Confirmar e Abrir Turno
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -981,6 +1126,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {(['alfa', 'bravo', 'charlie', 'fox'] as Canal[]).map((c) => {
           const config = CANAL_CONFIG[c];
+          const altCfg = ALTERNATIVAS_CONFIG[c];
+          const altAtual = alternativasPorCanal[c];
           const channelAgentPresence = presence[c] || {};
           const presentAgentIds = Object.keys(channelAgentPresence).filter(id => channelAgentPresence[id]?.presente);
           const count = presentAgentIds.length;
@@ -988,7 +1135,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
           const channelOcorrencias = ocorrencias.filter(o => o.canal === c).length;
           const responsavelId = canalResponsaveis[c];
           const responsavelAgente = responsavelId ? allAgentes.find(a => a.matricula === responsavelId) : null;
-          
+          const isAlterandoEste = alterandoAlternativa === c;
+
           return (
             <div key={c} className="card p-4">
               <div className="flex items-center justify-between mb-3">
@@ -1001,6 +1149,40 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   count > 0 ? "bg-teal-500" : "bg-muted"
                 )} />
               </div>
+
+              {/* Alternativa IS107 */}
+              <div className="mb-2 pb-2 border-b border-border-2">
+                {!altCfg.automatico && isAlterandoEste ? (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {altCfg.alternativas.map(alt => (
+                      <button
+                        key={alt}
+                        onClick={() => handleAlterarAlternativa(c, alt)}
+                        className={`text-[10px] px-2 py-1 rounded border transition-colors ${alt === altAtual ? 'border-accent bg-accent/10 text-accent font-semibold' : 'border-border-2 text-muted hover:border-border'}`}
+                      >
+                        Alt. {alt}
+                      </button>
+                    ))}
+                    <button onClick={() => setAlterandoAlternativa(null)} className="text-[10px] px-2 py-1 rounded border border-border-2 text-muted">✕</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-accent font-semibold">
+                      {altCfg.label[altAtual] || `Alternativa ${altAtual}`}
+                      {altCfg.automatico && <span className="text-muted font-normal ml-1">(auto)</span>}
+                    </span>
+                    {!altCfg.automatico && (
+                      <button
+                        onClick={() => setAlterandoAlternativa(c)}
+                        className="text-[9px] text-muted hover:text-text underline"
+                      >
+                        alterar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="text-2xl font-semibold font-mono mb-0.5 text-text">{count}</div>
               <div className="text-[11px] text-muted">agentes presentes</div>
               {intermediarios.length > 0 && (
@@ -1236,7 +1418,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
             </div>
             <div className="flex-1 overflow-y-auto p-6 bg-surface-3">
               <div className="bg-white shadow-lg mx-auto">
-                <PdfReport 
+                <PdfReport
                   turno={currentTurno}
                   data={new Date().toLocaleDateString('pt-BR')}
                   supervisor={supervisorName}
@@ -1249,6 +1431,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   voos={voos}
                   canalResponsaveis={canalResponsaveis}
                   movimentacoes={movimentacoesAll}
+                  alternativas={alternativasPorCanal}
+                  alternativasHistorico={alternativasHistorico}
                 />
               </div>
             </div>
@@ -1943,6 +2127,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA seguranca TO anon, authenticated;`}
                   voos={historicoDetalhe.voos}
                   canalResponsaveis={historicoDetalhe.canalResponsaveis}
                   movimentacoes={historicoDetalhe.movimentacoes}
+                  alternativas={historicoDetalhe.alternativas}
+                  alternativasHistorico={historicoDetalhe.alternativasHistorico}
                 />
               </div>
             </div>

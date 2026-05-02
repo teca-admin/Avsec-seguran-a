@@ -63,3 +63,12 @@ export interface PaxFlow {
   img2?: string;
   texto?: string;
 }
+
+export interface AlternativaHistorico {
+  id: string;
+  turno_id: string;
+  canal: Canal;
+  alternativa_anterior: number | null;
+  alternativa_nova: number;
+  alterado_em: string;
+}
